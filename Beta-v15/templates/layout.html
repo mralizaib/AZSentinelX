@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ByteIT Security Platform{% endblock %}</title>
+    <!-- Bootstrap CSS from Replit theme -->
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    <!-- Font Awesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body {% if current_user.is_authenticated %}data-user-id="{{ current_user.id }}"{% endif %}>
+    {% if current_user.is_authenticated %}
+        <!-- Main layout for authenticated users -->
+        <div class="container-fluid">
+            <div class="row">
+                <!-- Sidebar Navigation -->
+                <div class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse" style="min-height: 100vh;">
+                    <div class="d-flex flex-column p-3 text-white">
+                        <a href="{{ url_for('dashboard.index') }}" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
+                            <img src="{{ url_for('static', filename='css/byteit-logo.jpg') }}" alt="ByteIT" class="byteit-logo byteit-logo-sidebar me-2 rounded-circle border border-secondary shadow-sm">
+                            <span class="fs-4">ByteIT</span>
+                        </a>
+
+                        <!-- Real-time clock -->
+                        <div class="text-center my-3">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="fas fa-clock me-2"></i>
+                                <span id="live-clock" class="text-light fs-5">00:00:00</span>
+                            </div>
+                            <div id="live-date" class="text-light-emphasis small mt-1"></div>
+                        </div>
+                        <hr>
+                        <ul class="nav nav-pills flex-column mb-auto">
+                            <li class="nav-item">
+                                <a href="{{ url_for('dashboard.index') }}" class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+                                    <i class="fas fa-chart-line me-2"></i>
+                                    Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ url_for('alerts.index') }}" class="nav-link {% if request.endpoint == 'alerts.index' %}active{% endif %}">
+                                    <i class="fas fa-bell me-2"></i>
+                                    Alerts
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ url_for('insights.index') }}" class="nav-link {% if request.endpoint == 'insights.index' %}active{% endif %}">
+                                    <i class="fas fa-brain me-2"></i>
+                                    AI Insights
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ url_for('reports.index') }}" class="nav-link {% if request.endpoint == 'reports.index' %}active{% endif %}">
+                                    <i class="fas fa-file-alt me-2"></i>
+                                    Reports
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ url_for('retention.index') }}" class="nav-link {% if request.endpoint == 'retention.index' %}active{% endif %}">
+                                    <i class="fas fa-database me-2"></i>
+                                    Data Retention
+                                </a>
+                            </li>
+                            {% if current_user.is_admin() %}
+                            <li class="nav-item">
+                                <a href="{{ url_for('users.index') }}" class="nav-link {% if request.endpoint == 'users.index' %}active{% endif %}">
+                                    <i class="fas fa-users me-2"></i>
+                                    User Management
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ url_for('admin.scheduler_management') }}" class="nav-link {% if request.endpoint == 'admin.scheduler_management' %}active{% endif %}">
+                                    <i class="fas fa-clock me-2"></i>
+                                    Scheduled Tasks
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ url_for('admin.ai_config') }}" class="nav-link {% if request.endpoint == 'admin.ai_config' %}active{% endif %}">
+                                    <i class="fas fa-cog me-2"></i>
+                                    AI Configuration
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                        <hr>
+                        <div class="dropdown">
+                            <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-user-circle me-2 fs-5"></i>
+                                <strong>{{ current_user.username }}</strong>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-dark text-small shadow" aria-labelledby="dropdownUser1">
+                                <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Sign out</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main content area -->
+                <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+                    <!-- Flash messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <!-- Main content -->
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <!-- Simple layout for non-authenticated users -->
+        <div class="container py-5">
+            <!-- Flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% block auth_content %}{% endblock %}
+        </div>
+    {% endif %}
+
+    <!-- Common modals -->
+    <!-- Loading modal -->
+    <div class="modal fade" id="loading-modal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center p-5">
+                    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <h5>Processing...</h5>
+                    <p class="text-muted">Please wait while we process your request.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success modal -->
+    <div class="modal fade" id="success-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="fas fa-check-circle me-2"></i>Success</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="success-message">Operation completed successfully.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error modal -->
+    <div class="modal fade" id="error-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Error</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="error-message">An error occurred while processing your request.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voice Command Confirmation Modal -->
+    <div class="modal fade" id="voice-confirm-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-microphone me-2"></i>Confirm Command</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="voice-confirm-message">Are you sure you want to execute this command?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="voice-confirm-no">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="voice-confirm-yes">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if current_user.is_authenticated %}
+    <!-- AI Search Engine Interface -->
+    <div id="ai-search" class="ai-search">
+        <!-- Floating Search Button -->
+        <button id="search-toggle" class="search-toggle-btn" title="AI Search Engine">
+            <i class="fas fa-search"></i>
+        </button>
+        
+        <!-- Search Panel -->
+        <div id="search-panel" class="search-panel">
+            <div class="search-header">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-search me-2"></i>
+                    <span class="fw-bold">AI Security Search</span>
+                </div>
+                <button type="button" class="btn-close btn-close-white btn-sm" onclick="toggleSearch()"></button>
+            </div>
+            
+            <div class="search-input-area">
+                <div class="input-group search-input-group">
+                    <input type="text" id="search-input" class="form-control" placeholder="Ask about alerts, systems, users, IP addresses, login activities..." autocomplete="off">
+                    <button id="search-btn" class="btn btn-primary" title="Search">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+                <div id="search-suggestions" class="search-suggestions">
+                    <small class="text-muted"><strong>Try asking:</strong><br>
+                    "Show critical alerts from today" | "What are the most common threats?" | "List login failures from yesterday" | "Analyze RDP activities"</small>
+                </div>
+            </div>
+            
+            <div class="search-results" id="search-results">
+                <div class="search-welcome">
+                    <p><strong>Welcome to AI Security Search</strong></p>
+                    <p class="text-muted">Ask questions about your security alerts, systems, users, IP addresses, login activities, RDP sessions, or any security-related information. The AI will search through your alert data and provide accurate results.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .ai-search {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+        
+        .search-toggle-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+        }
+        
+        .search-toggle-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .search-toggle-btn.active {
+            background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+        }
+        
+        .search-panel {
+            position: absolute;
+            bottom: 70px;
+            right: 0;
+            width: 420px;
+            max-height: 600px;
+            background: #1a1a2e;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .search-panel.show {
+            display: flex;
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .search-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+        
+        .search-input-area {
+            padding: 15px;
+            border-bottom: 1px solid #2d3748;
+            background: #1a1a2e;
+        }
+        
+        .search-input-group {
+            background: #16213e;
+            border-radius: 25px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .search-input-group .form-control {
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 12px 15px;
+        }
+        
+        .search-input-group .form-control:focus {
+            background: transparent;
+            box-shadow: none;
+        }
+        
+        .search-input-group .form-control::placeholder {
+            color: #718096;
+        }
+        
+        .search-input-group .btn {
+            border: none;
+            padding: 12px 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .search-suggestions {
+            font-size: 12px;
+            padding: 10px 5px;
+        }
+        
+        .search-results {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        
+        .search-welcome {
+            color: #a0aec0;
+            font-size: 13px;
+        }
+        
+        .search-result-item {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .search-result-title {
+            color: #667eea;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+        
+        .search-result-content {
+            color: #e0e0e0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .search-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            gap: 10px;
+        }
+        
+        .search-loading .spinner-border {
+            width: 1.5rem;
+            height: 1.5rem;
+        }
+    </style>
+    {% endif %}
+
+    <!-- Bootstrap and core JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Real-time clock script -->
+    {% if current_user.is_authenticated %}
+    <script>
+    function updateClock() {
+        const now = new Date();
+
+        // Format time: HH:MM:SS
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const timeString = `${hours}:${minutes}:${seconds}`;
+
+        // Format date: Day, Month Date, Year
+        const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+        const dateString = now.toLocaleDateString('en-US', options);
+
+        // Update DOM elements
+        document.getElementById('live-clock').textContent = timeString;
+        document.getElementById('live-date').textContent = dateString;
+    }
+
+    // Initial update
+    updateClock();
+
+    // Update clock every second
+    setInterval(updateClock, 1000);
+    </script>
+    {% endif %}
+
+    <!-- Auto-logout functionality -->
+    <script>
+        let idleTimer;
+        let idleTime = 10 * 60 * 1000; // 10 minutes in milliseconds
+
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(function() {
+                alert('Session expired due to inactivity. You will be logged out.');
+                window.location.href = '{{ url_for("auth.logout") }}';
+            }, idleTime);
+        }
+
+        // Reset timer on user activity
+        document.addEventListener('mousemove', resetIdleTimer);
+        document.addEventListener('keypress', resetIdleTimer);
+        document.addEventListener('click', resetIdleTimer);
+        document.addEventListener('scroll', resetIdleTimer);
+
+        // Initialize timer
+        resetIdleTimer();
+    </script>
+
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    {% if current_user.is_authenticated %}
+    <script src="{{ url_for('static', filename='js/voice.js') }}"></script>
+    {% endif %}
+    {% block scripts %}{% endblock %}
+</body>
+</html>

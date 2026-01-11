@@ -1,0 +1,268 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard - ByteIT Security Platform{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-chart-line me-2"></i>Security Operations Center</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-btn">
+            <i class="fas fa-sync-alt me-1"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Summary Section (Top Bar) -->
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card bg-dark border-0 shadow-sm overflow-hidden">
+            <div class="card-body p-0">
+                <div class="row g-0 text-center">
+                    <div class="col-6 col-md-3 border-end border-secondary py-3 clickable-card" data-severity="critical">
+                        <div class="text-muted small text-uppercase fw-bold mb-1">Critical</div>
+                        <h3 class="mb-0 text-danger" id="critical-count">0</h3>
+                    </div>
+                    <div class="col-6 col-md-3 border-end border-secondary py-3 clickable-card" data-severity="high">
+                        <div class="text-muted small text-uppercase fw-bold mb-1">High</div>
+                        <h3 class="mb-0 text-warning" id="high-count">0</h3>
+                    </div>
+                    <div class="col-6 col-md-3 border-end border-secondary py-3 clickable-card" data-severity="medium">
+                        <div class="text-muted small text-uppercase fw-bold mb-1">Medium</div>
+                        <h3 class="mb-0 text-info" id="medium-count">0</h3>
+                    </div>
+                    <div class="col-6 col-md-3 py-3 clickable-card" data-severity="low">
+                        <div class="text-muted small text-uppercase fw-bold mb-1">Low</div>
+                        <h3 class="mb-0 text-success" id="low-count">0</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Dashboard Grid -->
+<div class="row g-4">
+    <!-- Left Column: Sidebar Layout -->
+    <div class="col-lg-3">
+        <div class="d-flex flex-column gap-4 sticky-top" style="top: 20px; z-index: 100;">
+            <!-- Agent Overview Section -->
+            <div class="card border-0 shadow-sm bg-dark bg-opacity-50">
+                <div class="card-header bg-transparent border-0 pt-4 px-4">
+                    <h6 class="text-uppercase text-muted fw-bold mb-0">Agent Assets</h6>
+                </div>
+                <div class="card-body px-4 pb-4">
+                    <div class="list-group list-group-flush">
+                        <div class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0 agent-status-card py-3" data-status="all" style="cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05) !important;">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary bg-opacity-10 p-2 rounded me-3">
+                                    <i class="fas fa-server text-primary"></i>
+                                </div>
+                                <span>Total Agents</span>
+                            </div>
+                            <span class="badge bg-primary rounded-pill px-3" id="total-agents">--</span>
+                        </div>
+                        <div class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0 agent-status-card py-3" data-status="active" style="cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05) !important;">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-success bg-opacity-10 p-2 rounded me-3">
+                                    <i class="fas fa-check-circle text-success"></i>
+                                </div>
+                                <span>Active</span>
+                            </div>
+                            <span class="badge bg-success rounded-pill px-3" id="active-agents">--</span>
+                        </div>
+                        <div class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0 agent-status-card py-3" data-status="disconnected" style="cursor: pointer;">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-danger bg-opacity-10 p-2 rounded me-3">
+                                    <i class="fas fa-times-circle text-danger"></i>
+                                </div>
+                                <span>Disconnected</span>
+                            </div>
+                            <span class="badge bg-danger rounded-pill px-3" id="disconnected-agents">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Misc Events & Quick Actions -->
+            <div class="card border-0 shadow-sm clickable-card" data-severity="events" style="cursor: pointer;">
+                <div class="card-body py-4">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-info bg-opacity-10 p-3 rounded-3 me-3">
+                            <i class="fas fa-stream text-info fs-4"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-muted small text-uppercase mb-1 fw-bold">Misc Events</h6>
+                            <h3 class="mb-0 text-info" id="events-count">--</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Location Risk Chart -->
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent border-0 pt-4 px-4">
+                    <h6 class="text-uppercase text-muted fw-bold mb-0">Location Risk</h6>
+                </div>
+                <div class="card-body px-2 pb-4">
+                    <div id="locations-chart" style="height: 300px;">
+                        <div class="d-flex justify-content-center align-items-center h-100">
+                            <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Timeline & Analysis -->
+    <div class="col-lg-9">
+        <div class="d-flex flex-column gap-4">
+            <!-- Timeline Chart -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center pt-4 px-4">
+                    <h6 class="text-uppercase text-muted fw-bold mb-0">Alert Timeline</h6>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary timeline-range active" data-days="1">24h</button>
+                        <button type="button" class="btn btn-outline-secondary timeline-range" data-days="7">7d</button>
+                        <button type="button" class="btn btn-outline-secondary timeline-range" data-days="30">30d</button>
+                    </div>
+                </div>
+                <div class="card-body px-4 pb-4">
+                    <div id="alerts-timeline-chart" class="timeline-chart-container" style="height: 300px;">
+                        <div class="d-flex justify-content-center align-items-center h-100">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-7">
+                    <!-- Recent Alerts -->
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center pt-4 px-4">
+                            <h6 class="text-uppercase text-muted fw-bold mb-0">Recent Activity</h6>
+                            <a href="{{ url_for('alerts.index') }}" class="btn btn-sm btn-link text-decoration-none">View All</a>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <tbody id="recent-alerts-body">
+                                        <tr>
+                                            <td class="text-center py-5">
+                                                <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <!-- Top Rules -->
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-transparent border-0 pt-4 px-4">
+                            <h6 class="text-uppercase text-muted fw-bold mb-0">Top Rules</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <tbody id="top-rules-body">
+                                        <tr>
+                                            <td class="text-center py-5">
+                                                <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Agent Details Modal -->
+<div class="modal fade" id="agent-details-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="agent-modal-title">Agent Details</h5>
+                <div class="ms-auto d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-success" id="export-agents-xlsx">
+                        <i class="fas fa-file-excel me-1"></i> Export Excel
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="agent-search-filter" placeholder="Filter agents by name, IP, group, or location...">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>IP Address</th>
+                                <th>Status</th>
+                                <th>Group</th>
+                                <th>Location</th>
+                                <th>OS</th>
+                                <th>Last Keep Alive</th>
+                            </tr>
+                        </thead>
+                        <tbody id="agent-details-table-body">
+                            <!-- Data populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- System Settings Section -->
+{% if current_user.is_admin() %}
+<div class="row mt-4">
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center pt-4 px-4">
+                <h6 class="text-uppercase text-muted fw-bold mb-0"><i class="fas fa-cogs me-2"></i>System Configuration</h6>
+                <button type="button" class="btn btn-primary btn-sm" id="saveSystemConfig">
+                    <i class="fas fa-save me-2"></i>Save Changes
+                </button>
+            </div>
+            <div class="card-body p-4">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="dashboardRefreshInterval" class="form-label small text-muted text-uppercase fw-bold">Dashboard Refresh (sec)</label>
+                            <input type="number" class="form-control" id="dashboardRefreshInterval" placeholder="60" min="10">
+                        </div>
+                        <div class="mb-3">
+                            <label for="alertCheckInterval" class="form-label small text-muted text-uppercase fw-bold">Alert Check (min)</label>
+                            <input type="number" class="form-control" id="alertCheckInterval" placeholder="60" min="30">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="text-muted small mb-3">Configure data retention policies to manage how long security data is stored.</p>
+                        <a href="{{ url_for('retention.index') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-database me-2"></i>Manage Data Retention
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

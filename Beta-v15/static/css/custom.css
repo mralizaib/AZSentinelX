@@ -1,0 +1,296 @@
+/* Dashboard UI Redesign */
+.card {
+    background-color: #1a1c23 !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-radius: 12px !important;
+}
+
+.card-header {
+    background-color: transparent !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.table th {
+    background-color: #1a1c23 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    color: #a0aec0 !important;
+}
+
+.table td {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.02) !important;
+}
+
+.list-group-item {
+    border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.clickable-card {
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.clickable-card:hover {
+    background-color: #242631 !important;
+    transform: translateY(-2px);
+}
+
+.bg-dark {
+    background-color: #111319 !important;
+}
+
+.badge.rounded-pill {
+    padding: 0.5em 1em;
+}
+
+.severity-critical {
+    color: #dc3545 !important;
+}
+
+.severity-high {
+    color: #fd7e14 !important;
+}
+
+.severity-medium {
+    color: #ffc107 !important;
+}
+
+.severity-low {
+    color: #28a745;
+}
+
+.bg-severity-low {
+    background-color: #28a745 !important;
+}
+
+.severity-fim {
+    color: #17a2b8;
+}
+
+.bg-severity-fim {
+    background-color: #17a2b8 !important;
+}
+
+/* Enhanced Card Styling */
+.stat-card {
+    border: none !important;
+    border-radius: 12px !important;
+    transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    overflow: hidden;
+    position: relative;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 20px rgba(0,0,0,0.2);
+}
+
+.stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
+    pointer-events: none;
+}
+
+/* Agent Status Colors */
+.card.total-agents { border-left: 5px solid #6610f2 !important; }
+.card.active-agents { border-left: 5px solid #198754 !important; }
+.card.disconnected-agents { border-left: 5px solid #dc3545 !important; }
+.card.critical { border-left: 5px solid #dc3545 !important; }
+.card.high { border-left: 5px solid #fd7e14 !important; }
+.card.medium { border-left: 5px solid #ffc107 !important; }
+.card.low { border-left: 5px solid #6c757d !important; }
+.card.events { border-left: 5px solid #0dcaf0 !important; }
+
+/* Table Styling */
+.table {
+    border-collapse: separate;
+    border-spacing: 0 8px;
+}
+
+.table thead th {
+    border: none;
+    color: #a0aec0;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    background: transparent !important;
+}
+
+.table tbody tr {
+    background-color: rgba(255,255,255,0.03);
+    transition: background-color 0.2s;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(255,255,255,0.08);
+}
+
+.table td {
+    border: none;
+    padding: 1rem;
+}
+
+.table tr td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+.table tr td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+
+/* Chart Containers */
+.chart-container {
+    position: relative;
+    padding: 1rem;
+    background: rgba(255,255,255,0.02);
+    border-radius: 12px;
+}
+
+/* AI Insights section */
+.insight-result {
+    border-left: 4px solid var(--bs-primary);
+    padding-left: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.insight-question {
+    background-color: rgba(13, 110, 253, 0.1);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.insight-answer code,
+.search-result-content code,
+.qa-full-answer code,
+.conversation-messages code,
+code {
+    background-color: rgba(0, 0, 0, 0.3) !important;
+    color: #ffffff !important;
+    padding: 0.2rem 0.4rem !important;
+    border-radius: 4px !important;
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    text-shadow: none !important;
+}
+
+.insight-answer pre,
+.search-result-content pre,
+.qa-full-answer pre,
+.conversation-messages pre,
+pre {
+    background-color: rgba(0, 0, 0, 0.3) !important;
+    padding: 1rem !important;
+    border-radius: 6px !important;
+    margin-bottom: 1rem !important;
+    overflow-x: auto !important;
+}
+
+.insight-answer pre code,
+.search-result-content pre code,
+.qa-full-answer pre code,
+.conversation-messages pre code,
+pre code {
+    background-color: transparent !important;
+    padding: 0 !important;
+    color: #ffffff !important;
+}
+
+/* Star rating */
+.rating {
+    display: inline-block;
+    unicode-bidi: bidi-override;
+    color: #ddd;
+    font-size: 25px;
+    height: 25px;
+    width: auto;
+    margin: 0;
+    position: relative;
+    padding: 0;
+}
+
+.rating-upper {
+    color: #ffc107;
+    padding: 0;
+    position: absolute;
+    z-index: 1;
+    display: flex;
+    top: 0;
+    left: 0;
+    overflow: hidden;
+}
+
+.rating-lower {
+    padding: 0;
+    display: flex;
+    z-index: 0;
+}
+
+/* Dashboard timeline chart */
+.timeline-chart-container {
+    height: 300px;
+    width: 100%;
+}
+
+/* Custom sidebar active link */
+.nav-pills .nav-link.active {
+    background-color: rgba(13, 110, 253, 0.1);
+    color: var(--bs-primary);
+    border-left: 3px solid var(--bs-primary);
+}
+
+/* Custom table styling */
+.alert-table th {
+    position: sticky;
+    top: 0;
+    background-color: var(--bs-dark);
+    z-index: 1;
+}
+
+/* ByteIT Logo Styling */
+.byteit-logo {
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.byteit-logo:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(13, 110, 253, 0.3);
+}
+
+.byteit-logo-sidebar {
+    width: 40px;
+    height: 40px;
+}
+
+.byteit-logo-login {
+    width: 50px;
+    height: 50px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* Hide voice assistant button */
+#voice-assistant-btn {
+    display: none !important;
+}

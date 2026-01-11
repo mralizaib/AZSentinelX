@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+
+{% block title %}Access Denied{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-lock text-danger" style="font-size: 5rem;"></i>
+                    </div>
+                    <h2 class="card-title mb-4">Access Denied</h2>
+                    <div class="alert alert-danger">
+                        {{ message }}
+                    </div>
+                    <p class="mb-4">
+                        This section requires administrator privileges. Please contact your system administrator for assistance.
+                    </p>
+                    <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">
+                        <i class="fas fa-home me-2"></i>Return to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
