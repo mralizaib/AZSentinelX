@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .report-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .report-title {
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .report-meta {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+
+        .report-summary {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-left: 5px solid #4b6584;
+            border-radius: 4px;
+        }
+
+        .summary-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+
+        .summary-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+
+        .severity-critical {
+            color: #e74c3c;
+        }
+
+        .severity-high {
+            color: #e67e22;
+        }
+
+        .severity-medium {
+            color: #f1c40f;
+        }
+
+        .severity-low {
+            color: #95a5a6;
+        }
+
+        .alerts-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+
+        .alerts-table th {
+            background-color: #4b6584;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+
+        .alerts-table td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .alerts-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .alerts-table tr:hover {
+            background-color: #e9e9e9;
+        }
+
+        .section-title {
+            font-size: 22px;
+            margin: 30px 0 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+            color: #2c3e50;
+        }
+
+        .report-footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #7f8c8d;
+            text-align: center;
+        }
+
+        @media print {
+            body {
+                padding: 0;
+                max-width: none;
+            }
+
+            .stat-card {
+                break-inside: avoid;
+            }
+
+            .alerts-table {
+                page-break-inside: auto;
+            }
+
+            .alerts-table tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+
+            .alerts-table thead {
+                display: table-header-group;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-header">
+        <h1 class="report-title">{{ title }}</h1>
+        <div class="report-meta">
+            Generated: {{ generated_at }} | Time Period: {{ period.start }} to {{ period.end }}
+            {% if timezone_note %}
+            | Note: {{ timezone_note }}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="report-summary">
+        <h2 class="summary-title">Alert Summary</h2>
+        <p>
+            This report includes security alerts from the selected time period with the following severity levels:
+            {% for level in severity_levels %}
+                <span class="severity-{{ level }}">{{ level|capitalize }}</span>{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </p>
+
+        <div class="summary-stats">
+            <div class="stat-card">
+                <div class="stat-value">{{ total_alerts }}</div>
+                <div class="stat-label">Total Alerts</div>
+            </div>
+
+            {% if alert_counts.critical %}
+            <div class="stat-card">
+                <div class="stat-value severity-critical">{{ alert_counts.critical }}</div>
+                <div class="stat-label">Critical Alerts</div>
+            </div>
+            {% endif %}
+
+            {% if alert_counts.high %}
+            <div class="stat-card">
+                <div class="stat-value severity-high">{{ alert_counts.high }}</div>
+                <div class="stat-label">High Alerts</div>
+            </div>
+            {% endif %}
+
+            {% if alert_counts.medium %}
+            <div class="stat-card">
+                <div class="stat-value severity-medium">{{ alert_counts.medium }}</div>
+                <div class="stat-label">Medium Alerts</div>
+            </div>
+            {% endif %}
+
+            {% if alert_counts.low %}
+            <div class="stat-card">
+                <div class="stat-value severity-low">{{ alert_counts.low }}</div>
+                <div class="stat-label">Low Alerts</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <h2 class="section-title">Security Alerts</h2>
+
+    {% if alerts %}
+        <table class="alerts-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Agent</th>
+                    <th>Rule ID</th>
+                    <th>Level</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for alert in alerts %}
+                {% set source = alert.source %}
+                {% set level = source.rule.level|default(0) %}
+
+                {% if level >= 15 %}
+                    {% set severity_class = "severity-critical" %}
+                {% elif level >= 12 %}
+                    {% set severity_class = "severity-high" %}
+                {% elif level >= 7 %}
+                    {% set severity_class = "severity-medium" %}
+                {% else %}
+                    {% set severity_class = "severity-low" %}
+                {% endif %}
+
+                <tr>
+                    <td>{{ alert.source.get('@timestamp_display', alert.source.get('@timestamp', 'N/A')) }}</td>
+                    <td>{{ source.agent.name|default('N/A') }}</td>
+                    <td>{{ source.rule.id|default('N/A') }}</td>
+                    <td class="{{ severity_class }}">{{ level }}</td>
+                    <td>{{ source.rule.description|default('N/A') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div style="padding: 20px; background-color: #f8f9fa; border-radius: 4px; text-align: center;">
+            No alerts found matching the specified criteria.
+        </div>
+    {% endif %}
+
+    <div class="report-footer">
+        <p>AZ Sentinel X Security Report | Generated: {{ generated_at }}</p>
+    </div>
+</body>
+</html>
+```

@@ -1,0 +1,511 @@
+{% extends "layout.html" %}
+
+{% block title %}Alerts - AZ Sentinel X{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-bell me-2"></i>Security Alerts</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-sm btn-primary me-2" data-bs-toggle="modal" data-bs-target="#create-alert-modal">
+            <i class="fas fa-plus me-1"></i> Create Alert Config
+        </button>
+        <div class="btn-group me-2" role="group">
+            <button type="button" class="btn btn-sm btn-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-download me-1"></i> Export
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#" id="export-csv"><i class="fas fa-file-csv me-2"></i>Export as CSV</a></li>
+                <li><a class="dropdown-item" href="#" id="export-xlsx"><i class="fas fa-file-excel me-2"></i>Export as Excel</a></li>
+                <li><a class="dropdown-item" href="#" id="export-pdf"><i class="fas fa-file-pdf me-2"></i>Export as PDF</a></li>
+            </ul>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-alerts-btn">
+            <i class="fas fa-sync-alt me-1"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Alerts Filter Section -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filter Alerts</h5>
+    </div>
+    <div class="card-body">
+        <form id="alert-filter-form">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Severity Levels</label>
+                    <div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="filter-critical" name="severity-filter" value="critical">
+                            <label class="form-check-label severity-critical" for="filter-critical">Critical</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="filter-high" name="severity-filter" value="high">
+                            <label class="form-check-label severity-high" for="filter-high">High</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="filter-medium" name="severity-filter" value="medium">
+                            <label class="form-check-label severity-medium" for="filter-medium">Medium</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="filter-low" name="severity-filter" value="low">
+                            <label class="form-check-label severity-low" for="filter-low">Low</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="filter-fim" name="severity-filter" value="fim">
+                            <label class="form-check-label severity-fim" for="filter-fim">FIM</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="filter-events" name="severity-filter" value="events">
+                            <label class="form-check-label text-info" for="filter-events">Events</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <label for="time-range-filter" class="form-label">Time Range</label>
+                    <select class="form-select" id="time-range-filter">
+                        <option value="1h">Last 1 Hour</option>
+                        <option value="6h">Last 6 Hours</option>
+                        <option value="24h" selected>Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="12d">Last 12 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                        <option value="60d">Last 60 Days</option>
+                        <option value="90d">Last 90 Days</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label for="search-filter" class="form-label">Search</label>
+                    <input type="text" class="form-control" id="search-filter" placeholder="Agent Name, IP, or Description">
+                </div>
+
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-1"></i> Apply Filters
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Alerts Results Section -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Security Alerts</h5>
+        <span class="badge bg-primary rounded-pill" id="alert-count">0</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Agent</th>
+                        <th>Rule ID</th>
+                        <th>Severity</th>
+                        <th>Description</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-table-body">
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading alerts...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <!-- Pagination -->
+        <div id="alerts-pagination" class="mt-3"></div>
+    </div>
+</div>
+
+<!-- Alert Configurations Section -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Alert Configurations</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Alert Levels</th>
+                        <th>Email Recipient</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="alert-configs-table-body">
+                    {% if alerts %}
+                        {% for alert in alerts %}
+                        <tr>
+                            <td>{{ alert.name }}</td>
+                            <td>
+                                {% for level in alert.get_alert_levels() %}
+                                <span class="badge bg-severity-{{ level }}">{{ level|capitalize }}</span>
+                                {% endfor %}
+                            </td>
+                            <td>{{ alert.email_recipient }}</td>
+                            <td>
+                                {% if alert.enabled %}
+                                <span class="badge bg-success">Enabled</span>
+                                {% else %}
+                                <span class="badge bg-danger">Disabled</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-info btn-test" data-id="{{ alert.id }}" title="Test Alert">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                    <button class="btn btn-warning btn-edit" data-id="{{ alert.id }}" title="Edit Alert">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-danger btn-delete" data-id="{{ alert.id }}" title="Delete Alert">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                <div class="alert alert-info m-0">
+                                    No alert configurations found. Create one to get started.
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Create Alert Modal -->
+<div class="modal fade" id="create-alert-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Create Alert Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-alert-form">
+                    <div class="mb-3">
+                        <label for="alert-name" class="form-label">Alert Name</label>
+                        <input type="text" class="form-control" id="alert-name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Alert Levels</label>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="alert-critical" name="alert-level" value="critical" checked>
+                                <label class="form-check-label severity-critical" for="alert-critical">Critical</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="alert-high" name="alert-level" value="high" checked>
+                                <label class="form-check-label severity-high" for="alert-high">High</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="alert-medium" name="alert-level" value="medium">
+                                <label class="form-check-label severity-medium" for="alert-medium">Medium</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="alert-low" name="alert-level" value="low">
+                                <label class="form-check-label severity-low" for="alert-low">Low</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="alert-fim" name="alert-level" value="fim">
+                                <label class="form-check-label severity-fim" for="alert-fim">FIM</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="alert-events" name="alert-level" value="events">
+                                <label class="form-check-label text-info" for="alert-events">Events</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email-recipient" class="form-label">Email Recipient</label>
+                        <input type="email" class="form-control" id="email-recipient" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="notify-time" class="form-label">Notification Time (24-hour format, optional)</label>
+                        <input type="time" class="form-control" id="notify-time" step="60">
+                        <div class="form-text">Enter time in 24-hour format (HH:MM). Leave empty to send alerts immediately as they occur.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Include Fields in Alert</label>
+                        <div class="form-text mb-2">Select fields to include in alert emails. These fields will be displayed in a table format.</div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="field-timestamp" name="include-field" value="@timestamp" checked>
+                                <label class="form-check-label" for="field-timestamp">Timestamp</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="field-agent-ip" name="include-field" value="agent.ip" checked>
+                                <label class="form-check-label" for="field-agent-ip">Agent IP</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="field-agent-location" name="include-field" value="agent.labels.location.set" checked>
+                                <label class="form-check-label" for="field-agent-location">Location</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="field-agent-name" name="include-field" value="agent.name" checked>
+                                <label class="form-check-label" for="field-agent-name">Agent Name</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="field-rule-description" name="include-field" value="rule.description" checked>
+                                <label class="form-check-label" for="field-rule-description">Rule Description</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="field-rule-id" name="include-field" value="rule.id" checked>
+                                <label class="form-check-label" for="field-rule-id">Rule ID</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="field-rule-level" name="include-field" value="rule.level">
+                                <label class="form-check-label" for="field-rule-level">Severity Level</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="field-decoder" name="include-field" value="decoder.name">
+                                <label class="form-check-label" for="field-decoder">Decoder</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="field-full-log" name="include-field" value="full_log">
+                                <label class="form-check-label" for="field-full-log">Full Log</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="alert-enabled" checked>
+                        <label class="form-check-label" for="alert-enabled">Enable this alert configuration</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" form="create-alert-form">Create Alert</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Alert Modal -->
+<div class="modal fade" id="edit-alert-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Alert Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-alert-form">
+                    <input type="hidden" id="edit-alert-id">
+
+                    <div class="mb-3">
+                        <label for="edit-alert-name" class="form-label">Alert Name</label>
+                        <input type="text" class="form-control" id="edit-alert-name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Alert Levels</label>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-alert-critical" name="edit-alert-level" value="critical">
+                                <label class="form-check-label severity-critical" for="edit-alert-critical">Critical</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-alert-high" name="edit-alert-level" value="high">
+                                <label class="form-check-label severity-high" for="edit-alert-high">High</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-alert-medium" name="edit-alert-level" value="medium">
+                                <label class="form-check-label severity-medium" for="edit-alert-medium">Medium</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-alert-low" name="edit-alert-level" value="low">
+                                <label class="form-check-label severity-low" for="edit-alert-low">Low</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-alert-fim" name="edit-alert-level" value="fim">
+                                <label class="form-check-label severity-fim" for="edit-alert-fim">FIM</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-alert-events" name="edit-alert-level" value="events">
+                                <label class="form-check-label text-info" for="edit-alert-events">Events</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit-email-recipient" class="form-label">Email Recipient</label>
+                        <input type="email" class="form-control" id="edit-email-recipient" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit-notify-time" class="form-label">Notification Time (24-hour format, optional)</label>
+                        <input type="time" class="form-control" id="edit-notify-time" step="60">
+                        <div class="form-text">Enter time in 24-hour format (HH:MM). Leave empty to send alerts immediately as they occur.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Include Fields in Alert</label>
+                        <div class="form-text mb-2">Select fields to include in alert emails. These fields will be displayed in a table format.</div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit-field-timestamp" name="edit-include-field" value="@timestamp">
+                                <label class="form-check-label" for="edit-field-timestamp">Timestamp</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit-field-agent-ip" name="edit-include-field" value="agent.ip">
+                                <label class="form-check-label" for="edit-field-agent-ip">Agent IP</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit-field-agent-location" name="edit-include-field" value="agent.labels.location.set">
+                                <label class="form-check-label" for="edit-field-agent-location">Location</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit-field-agent-name" name="edit-include-field" value="agent.name">
+                                <label class="form-check-label" for="edit-field-agent-name">Agent Name</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit-field-rule-description" name="edit-include-field" value="rule.description">
+                                <label class="form-check-label" for="edit-field-rule-description">Rule Description</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit-field-rule-id" name="edit-include-field" value="rule.id">
+                                <label class="form-check-label" for="edit-field-rule-id">Rule ID</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit-field-rule-level" name="edit-include-field" value="rule.level">
+                                <label class="form-check-label" for="edit-field-rule-level">Severity Level</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit-field-decoder" name="edit-include-field" value="decoder.name">
+                                <label class="form-check-label" for="edit-field-decoder">Decoder</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit-field-full-log" name="edit-include-field" value="full_log">
+                                <label class="form-check-label" for="edit-field-full-log">Full Log</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="edit-alert-enabled">
+                        <label class="form-check-label" for="edit-alert-enabled">Enable this alert configuration</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" form="edit-alert-form">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alert Details Modal -->
+<div class="modal fade" id="alert-details-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-search-plus me-2"></i>Alert Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-center" id="alert-details-loader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="alert-details-body"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="analyze-alert-btn">
+                    <i class="fas fa-brain me-1"></i> Analyze with AI
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden container to store alert data for frontend use -->
+<div id="alerts-data" style="display: none;" data-alerts="[]"></div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Alerts specific JavaScript -->
+<script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
+<script>
+    // Add alert analysis handler
+    document.getElementById('analyze-alert-btn').addEventListener('click', function() {
+        // Get the current alert data
+        const alertDetailsModal = bootstrap.Modal.getInstance(document.getElementById('alert-details-modal'));
+        const alertDetailsBody = document.getElementById('alert-details-body');
+        let alertData = {};
+
+        // Try to extract the alert ID from the modal content
+        try {
+            // Get all table rows in the alert details
+            const tableRows = alertDetailsBody.querySelectorAll('table tr');
+
+            // Loop through rows to find Alert ID and Index
+            tableRows.forEach(row => {
+                const headerCell = row.querySelector('th');
+                const dataCell = row.querySelector('td');
+
+                if (headerCell && dataCell) {
+                    const headerText = headerCell.textContent.trim();
+
+                    if (headerText === 'Alert ID') {
+                        alertData.id = dataCell.textContent.trim();
+                    } else if (headerText === 'Index') {
+                        alertData.index = dataCell.textContent.trim();
+                    }
+                }
+            });
+        } catch (e) {
+            console.error('Error extracting alert data:', e);
+        }
+
+        // Store the alert data in session storage for use on the insights page
+        if (alertData.id) {
+            sessionStorage.setItem('alert_to_analyze', JSON.stringify(alertData));
+        }
+
+        // Close alert details modal
+        alertDetailsModal.hide();
+
+        // Redirect to insights analyze page - this should specifically go to analyze, not templates
+        window.location.href = "{{ url_for('insights.index') }}?action=analyze";
+    });
+</script>
+<script>
+    function testAlert(alertId) {
+        // Implement test alert functionality here
+        alert('Test alert triggered for alert ID: ' + alertId);
+    }
+
+    function debugAlert(alertId) {
+        // Implement debug alert functionality here
+        alert('Debug alert triggered for alert ID: ' + alertId);
+    }
+</script>
+{% endblock %}
