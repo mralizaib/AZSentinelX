@@ -1,0 +1,358 @@
+{% extends "layout.html" %}
+
+{% block title %}Reports - AZ Sentinel X{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-file-alt me-2"></i>Reports</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-sm btn-primary me-2" data-bs-toggle="modal" data-bs-target="#create-report-modal">
+            <i class="fas fa-plus me-1"></i> Create Report
+        </button>
+        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#generate-report-modal">
+            <i class="fas fa-file-export me-1"></i> Generate Report
+        </button>
+    </div>
+</div>
+
+<!-- Report Configurations List -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Report Configurations</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Severity Levels</th>
+                        <th>Format</th>
+                        <th>Schedule</th>
+                        <th>Recipients</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="reports-table-body">
+                    {% if reports %}
+                        {% for report in reports %}
+                        <tr>
+                            <td>{{ report.name }}</td>
+                            <td>
+                                {% for level in report.get_severity_levels() %}
+                                <span class="badge bg-severity-{{ level }}">{{ level|capitalize }}</span>
+                                {% endfor %}
+                            </td>
+                            <td>{{ report.format|upper }}</td>
+                            <td>{{ report.schedule|default('Manual', true) }}</td>
+                            <td>
+                                {% set recipients = report.get_recipients() %}
+                                {% if recipients|length > 1 %}
+                                    {{ recipients[0] }} <span class="badge bg-secondary">+{{ recipients|length - 1 }}</span>
+                                {% else %}
+                                    {{ recipients[0] }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if report.enabled %}
+                                <span class="badge bg-success">Enabled</span>
+                                {% else %}
+                                <span class="badge bg-danger">Disabled</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-primary btn-generate" data-id="{{ report.id }}" title="Generate Report">
+                                        <i class="fas fa-file-alt"></i>
+                                    </button>
+                                    <button class="btn btn-info btn-send" data-id="{{ report.id }}" title="Send Report">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                    <button class="btn btn-warning btn-edit" data-id="{{ report.id }}" title="Edit Report">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-danger btn-delete" data-id="{{ report.id }}" title="Delete Report">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4">
+                                <div class="alert alert-info m-0">
+                                    No report configurations found. Create one to get started.
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Report Generation Section -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Report Generation</h5>
+    </div>
+    <div class="card-body">
+        <form id="quick-report-form">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Severity Levels</label>
+                    <div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="quick-critical" name="generate-severity-level" value="critical" checked>
+                            <label class="form-check-label" for="quick-critical">Critical</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="quick-high" name="generate-severity-level" value="high" checked>
+                            <label class="form-check-label" for="quick-high">High</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="quick-medium" name="generate-severity-level" value="medium" checked>
+                            <label class="form-check-label" for="quick-medium">Medium</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="quick-low" name="generate-severity-level" value="low">
+                            <label class="form-check-label" for="quick-low">Low</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <label for="quick-time-range" class="form-label">Time Range</label>
+                    <select class="form-select" id="quick-time-range" name="generate-time-range">
+                        <option value="24h" selected>Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                        <option value="60d">Last 60 Days</option>
+                        <option value="90d">Last 90 Days</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label for="quick-format" class="form-label">Format</label>
+                    <select class="form-select" id="quick-format" name="generate-format">
+                        <option value="pdf" selected>PDF</option>
+                        <option value="html">HTML</option>
+                    </select>
+                </div>
+
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="preview-option" name="preview">
+                        <label class="form-check-label" for="preview-option">
+                            Preview HTML report in browser (HTML format only)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <button type="button" class="btn btn-primary" id="generate-report-btn">
+                        <i class="fas fa-file-export me-1"></i> Generate Report
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Create Report Modal -->
+<div class="modal fade" id="create-report-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Create Report Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-report-form">
+                    <div class="mb-3">
+                        <label for="report-name" class="form-label">Report Name</label>
+                        <input type="text" class="form-control" id="report-name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Severity Levels</label>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="severity-critical" name="severity-level" value="critical" checked>
+                                <label class="form-check-label severity-critical" for="severity-critical">Critical</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="severity-high" name="severity-level" value="high" checked>
+                                <label class="form-check-label severity-high" for="severity-high">High</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="severity-medium" name="severity-level" value="medium" checked>
+                                <label class="form-check-label severity-medium" for="severity-medium">Medium</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="severity-low" name="severity-level" value="low">
+                                <label class="form-check-label severity-low" for="severity-low">Low</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="report-format" class="form-label">Report Format</label>
+                            <select class="form-select" id="report-format">
+                                <option value="pdf" selected>PDF</option>
+                                <option value="html">HTML</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="report-schedule" class="form-label">Schedule</label>
+                            <select class="form-select" id="report-schedule">
+                                <option value="" selected>Manual (No schedule)</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="schedule-time" class="form-label">Schedule Time (Pakistan Standard Time)</label>
+                        <input type="text" class="form-control" id="schedule-time" value="08:00" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" maxlength="5">
+                        <div class="form-text">Enter time in 24-hour format (HH:MM) in Pakistan Standard Time. Example: 04:35 for 4:35 AM, 13:30 for 1:30 PM</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="recipients" class="form-label">Email Recipients</label>
+                        <input type="text" class="form-control" id="recipients" placeholder="email1@example.com, email2@example.com" required>
+                        <div class="form-text">Separate multiple email addresses with commas</div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="report-enabled" checked>
+                        <label class="form-check-label" for="report-enabled">Enable this report configuration</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" form="create-report-form">Create Report</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Report Modal -->
+<div class="modal fade" id="edit-report-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Report Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-report-form">
+                    <input type="hidden" id="edit-report-id">
+
+                    <div class="mb-3">
+                        <label for="edit-report-name" class="form-label">Report Name</label>
+                        <input type="text" class="form-control" id="edit-report-name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Severity Levels</label>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-severity-critical" name="edit-severity-level" value="critical">
+                                <label class="form-check-label severity-critical" for="edit-severity-critical">Critical</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-severity-high" name="edit-severity-level" value="high">
+                                <label class="form-check-label severity-high" for="edit-severity-high">High</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-severity-medium" name="edit-severity-level" value="medium">
+                                <label class="form-check-label severity-medium" for="edit-severity-medium">Medium</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-severity-low" name="edit-severity-level" value="low">
+                                <label class="form-check-label severity-low" for="edit-severity-low">Low</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="edit-report-format" class="form-label">Report Format</label>
+                            <select class="form-select" id="edit-report-format">
+                                <option value="pdf">PDF</option>
+                                <option value="html">HTML</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="edit-report-schedule" class="form-label">Schedule</label>
+                            <select class="form-select" id="edit-report-schedule">
+                                <option value="">Manual (No schedule)</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit-schedule-time" class="form-label">Schedule Time (Pakistan Standard Time)</label>
+                        <input type="text" class="form-control" id="edit-schedule-time" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" maxlength="5">
+                        <div class="form-text">Enter time in 24-hour format (HH:MM) in Pakistan Standard Time. Example: 04:35 for 4:35 AM, 13:30 for 1:30 PM</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit-recipients" class="form-label">Email Recipients</label>
+                        <input type="text" class="form-control" id="edit-recipients" placeholder="email1@example.com, email2@example.com" required>
+                        <div class="form-text">Separate multiple email addresses with commas</div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="edit-report-enabled">
+                        <label class="form-check-label" for="edit-report-enabled">Enable this report configuration</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" form="edit-report-form">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Preview Modal -->
+<div class="modal fade" id="report-preview-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-file-alt me-2"></i>Report Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="report-preview-content" class="p-3 bg-light rounded"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="download-report-btn">
+                    <i class="fas fa-download me-1"></i> Download
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Reports specific JavaScript -->
+<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
+{% endblock %}
