@@ -1,0 +1,17 @@
+[Unit]
+Description=AZ Sentinel X Security Monitoring Application
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/azsentinel
+ExecStart=/usr/bin/make up
+ExecStop=/usr/bin/make down
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
