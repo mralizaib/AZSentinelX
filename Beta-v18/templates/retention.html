@@ -1,0 +1,619 @@
+{% extends 'layout.html' %}
+
+{% block title %}Data Retention Management | AZ Sentinel X{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Data Retention Management</h1>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPolicyModal">
+            <i class="fas fa-plus me-2"></i> Create Policy
+        </button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Retention Policies</h5>
+            <button id="applyAllPolicies" class="btn btn-info btn-sm">
+                <i class="fas fa-sync-alt me-1"></i> Apply All Policies
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="policiesTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Source Type</th>
+                            <th>Retention Period</th>
+                            <th>Last Run</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for policy in policies %}
+                        <tr data-policy-id="{{ policy.id }}">
+                            <td>{{ policy.name }}</td>
+                            <td>{{ policy.source_type }}</td>
+                            <td>{{ policy.retention_days }} days</td>
+                            <td>
+                                {% if policy.last_run %}
+                                {{ policy.last_run.strftime('%Y-%m-%d %H:%M') }}
+                                {% else %}
+                                Never
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if policy.enabled %}
+                                <span class="badge bg-success">Enabled</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Disabled</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-info btn-apply-policy" data-policy-id="{{ policy.id }}">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    <button class="btn btn-primary btn-edit-policy" data-policy-id="{{ policy.id }}">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-danger btn-delete-policy" data-policy-id="{{ policy.id }}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center">No retention policies configured</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">About Data Retention</h5>
+        </div>
+        <div class="card-body">
+            <p>Retention policies help you manage the lifecycle of your security data. You can configure how long data is stored in different systems:</p>
+            <ul>
+                <li><strong>OpenSearch:</strong> Delete old alerts from OpenSearch indexes</li>
+                <li><strong>Wazuh:</strong> Clean up Wazuh manager logs</li>
+                <li><strong>Database:</strong> Remove old records from the application database</li>
+            </ul>
+            <p>Benefits of retention management include:</p>
+            <ul>
+                <li>Improved system performance</li>
+                <li>Reduced storage costs</li>
+                <li>Compliance with data retention policies</li>
+                <li>Better focus on relevant security data</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Create Policy Modal -->
+<div class="modal fade" id="createPolicyModal" tabindex="-1" aria-labelledby="createPolicyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createPolicyModalLabel">Create Retention Policy</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createPolicyForm">
+                    <div class="mb-3">
+                        <label for="policyName" class="form-label">Policy Name</label>
+                        <input type="text" class="form-control" id="policyName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="policyDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="policyDescription" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="sourceType" class="form-label">Source Type</label>
+                        <select class="form-select" id="sourceType" name="source_type" required>
+                            <option value="" selected disabled>Select a source type</option>
+                            <option value="opensearch">OpenSearch Alerts</option>
+                            <option value="wazuh">Wazuh Logs</option>
+                            <option value="database">Application Database</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="retentionDays" class="form-label">Retention Period (days)</label>
+                        <input type="number" class="form-control" id="retentionDays" name="retention_days" min="1" value="30" required>
+                    </div>
+                    <div id="severityLevelsContainer" class="mb-3 source-specific opensearch">
+                        <label class="form-label">Severity Levels</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="criticalLevel" name="severity_level_critical" value="critical">
+                            <label class="form-check-label" for="criticalLevel">
+                                Critical
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="highLevel" name="severity_level_high" value="high">
+                            <label class="form-check-label" for="highLevel">
+                                High
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="mediumLevel" name="severity_level_medium" value="medium">
+                            <label class="form-check-label" for="mediumLevel">
+                                Medium
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="lowLevel" name="severity_level_low" value="low">
+                            <label class="form-check-label" for="lowLevel">
+                                Low
+                            </label>
+                        </div>
+                    </div>
+                    <div id="ruleIdsContainer" class="mb-3 source-specific opensearch">
+                        <label for="ruleIds" class="form-label">Rule IDs (comma-separated)</label>
+                        <input type="text" class="form-control" id="ruleIds" name="rule_ids" placeholder="e.g. 50123, 50124, 50125">
+                    </div>
+                    <div class="mb-3">
+                        <label for="cronSchedule" class="form-label">Schedule (cron expression)</label>
+                        <input type="text" class="form-control" id="cronSchedule" name="cron_schedule" placeholder="e.g. 0 0 * * * (daily at midnight)">
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" role="switch" id="policyEnabled" name="enabled" checked>
+                        <label class="form-check-label" for="policyEnabled">Enabled</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="savePolicy">Create Policy</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Policy Modal -->
+<div class="modal fade" id="editPolicyModal" tabindex="-1" aria-labelledby="editPolicyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editPolicyModalLabel">Edit Retention Policy</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editPolicyForm">
+                    <input type="hidden" id="editPolicyId">
+                    <div class="mb-3">
+                        <label for="editPolicyName" class="form-label">Policy Name</label>
+                        <input type="text" class="form-control" id="editPolicyName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editPolicyDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editPolicyDescription" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editSourceType" class="form-label">Source Type</label>
+                        <select class="form-select" id="editSourceType" name="source_type" required>
+                            <option value="opensearch">OpenSearch Alerts</option>
+                            <option value="wazuh">Wazuh Logs</option>
+                            <option value="database">Application Database</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editRetentionDays" class="form-label">Retention Period (days)</label>
+                        <input type="number" class="form-control" id="editRetentionDays" name="retention_days" min="1" required>
+                    </div>
+                    <div id="editSeverityLevelsContainer" class="mb-3 edit-source-specific opensearch">
+                        <label class="form-label">Severity Levels</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editCriticalLevel" name="severity_level_critical" value="critical">
+                            <label class="form-check-label" for="editCriticalLevel">
+                                Critical
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editHighLevel" name="severity_level_high" value="high">
+                            <label class="form-check-label" for="editHighLevel">
+                                High
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editMediumLevel" name="severity_level_medium" value="medium">
+                            <label class="form-check-label" for="editMediumLevel">
+                                Medium
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editLowLevel" name="severity_level_low" value="low">
+                            <label class="form-check-label" for="editLowLevel">
+                                Low
+                            </label>
+                        </div>
+                    </div>
+                    <div id="editRuleIdsContainer" class="mb-3 edit-source-specific opensearch">
+                        <label for="editRuleIds" class="form-label">Rule IDs (comma-separated)</label>
+                        <input type="text" class="form-control" id="editRuleIds" name="rule_ids" placeholder="e.g. 50123, 50124, 50125">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editCronSchedule" class="form-label">Schedule (cron expression)</label>
+                        <input type="text" class="form-control" id="editCronSchedule" name="cron_schedule" placeholder="e.g. 0 0 * * * (daily at midnight)">
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" role="switch" id="editPolicyEnabled" name="enabled">
+                        <label class="form-check-label" for="editPolicyEnabled">Enabled</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="updatePolicy">Update Policy</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deletePolicyModal" tabindex="-1" aria-labelledby="deletePolicyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deletePolicyModalLabel">Delete Policy</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this retention policy? This action cannot be undone.</p>
+                <input type="hidden" id="deletePolicyId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeletePolicy">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Action Result Modal -->
+<div class="modal fade" id="actionResultModal" tabindex="-1" aria-labelledby="actionResultModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="actionResultModalLabel">Action Result</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="actionResultContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Source type change handler
+    function handleSourceTypeChange(sourceType, prefix = '') {
+        document.querySelectorAll(`.${prefix}source-specific`).forEach(el => {
+            el.style.display = 'none';
+        });
+        
+        document.querySelectorAll(`.${prefix}source-specific.${sourceType}`).forEach(el => {
+            el.style.display = 'block';
+        });
+    }
+    
+    // Handle source type change in create form
+    document.getElementById('sourceType').addEventListener('change', function() {
+        handleSourceTypeChange(this.value);
+    });
+    
+    // Handle source type change in edit form
+    document.getElementById('editSourceType').addEventListener('change', function() {
+        handleSourceTypeChange(this.value, 'edit-');
+    });
+    
+    // Create policy
+    document.getElementById('savePolicy').addEventListener('click', function() {
+        const formData = new FormData(document.getElementById('createPolicyForm'));
+        const data = {
+            name: formData.get('name'),
+            description: formData.get('description'),
+            source_type: formData.get('source_type'),
+            retention_days: parseInt(formData.get('retention_days')),
+            cron_schedule: formData.get('cron_schedule'),
+            enabled: formData.get('enabled') === 'on'
+        };
+        
+        // Get severity levels
+        const severityLevels = [];
+        if (formData.get('severity_level_critical')) severityLevels.push('critical');
+        if (formData.get('severity_level_high')) severityLevels.push('high');
+        if (formData.get('severity_level_medium')) severityLevels.push('medium');
+        if (formData.get('severity_level_low')) severityLevels.push('low');
+        
+        if (severityLevels.length > 0) {
+            data.severity_levels = severityLevels;
+        }
+        
+        // Get rule IDs
+        const ruleIdsInput = formData.get('rule_ids');
+        if (ruleIdsInput) {
+            const ruleIds = ruleIdsInput.split(',').map(id => id.trim()).filter(id => id !== '');
+            if (ruleIds.length > 0) {
+                data.rule_ids = ruleIds;
+            }
+        }
+        
+        fetch('/api/retention/policies', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert('Error creating policy: ' + result.error);
+            } else {
+                // Close modal and refresh page
+                bootstrap.Modal.getInstance(document.getElementById('createPolicyModal')).hide();
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while creating the policy');
+        });
+    });
+    
+    // Load policy for editing
+    document.querySelectorAll('.btn-edit-policy').forEach(button => {
+        button.addEventListener('click', function() {
+            const policyId = this.getAttribute('data-policy-id');
+            
+            fetch(`/api/retention/policies`)
+                .then(response => response.json())
+                .then(policies => {
+                    const policy = policies.find(p => p.id == policyId);
+                    if (policy) {
+                        document.getElementById('editPolicyId').value = policy.id;
+                        document.getElementById('editPolicyName').value = policy.name;
+                        document.getElementById('editPolicyDescription').value = policy.description || '';
+                        document.getElementById('editSourceType').value = policy.source_type;
+                        document.getElementById('editRetentionDays').value = policy.retention_days;
+                        document.getElementById('editCronSchedule').value = policy.cron_schedule || '';
+                        document.getElementById('editPolicyEnabled').checked = policy.enabled;
+                        
+                        // Set severity levels
+                        document.getElementById('editCriticalLevel').checked = policy.severity_levels && policy.severity_levels.includes('critical');
+                        document.getElementById('editHighLevel').checked = policy.severity_levels && policy.severity_levels.includes('high');
+                        document.getElementById('editMediumLevel').checked = policy.severity_levels && policy.severity_levels.includes('medium');
+                        document.getElementById('editLowLevel').checked = policy.severity_levels && policy.severity_levels.includes('low');
+                        
+                        // Set rule IDs
+                        document.getElementById('editRuleIds').value = policy.rule_ids ? policy.rule_ids.join(', ') : '';
+                        
+                        // Show/hide source-specific fields
+                        handleSourceTypeChange(policy.source_type, 'edit-');
+                        
+                        // Show modal
+                        new bootstrap.Modal(document.getElementById('editPolicyModal')).show();
+                    } else {
+                        alert('Policy not found');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while loading the policy');
+                });
+        });
+    });
+    
+    // Update policy
+    document.getElementById('updatePolicy').addEventListener('click', function() {
+        const policyId = document.getElementById('editPolicyId').value;
+        const formData = new FormData(document.getElementById('editPolicyForm'));
+        const data = {
+            name: formData.get('name'),
+            description: formData.get('description'),
+            source_type: formData.get('source_type'),
+            retention_days: parseInt(formData.get('retention_days')),
+            cron_schedule: formData.get('cron_schedule'),
+            enabled: formData.get('enabled') === 'on'
+        };
+        
+        // Get severity levels
+        const severityLevels = [];
+        if (formData.get('severity_level_critical')) severityLevels.push('critical');
+        if (formData.get('severity_level_high')) severityLevels.push('high');
+        if (formData.get('severity_level_medium')) severityLevels.push('medium');
+        if (formData.get('severity_level_low')) severityLevels.push('low');
+        
+        if (severityLevels.length > 0) {
+            data.severity_levels = severityLevels;
+        }
+        
+        // Get rule IDs
+        const ruleIdsInput = formData.get('rule_ids');
+        if (ruleIdsInput) {
+            const ruleIds = ruleIdsInput.split(',').map(id => id.trim()).filter(id => id !== '');
+            if (ruleIds.length > 0) {
+                data.rule_ids = ruleIds;
+            }
+        }
+        
+        fetch(`/api/retention/policies/${policyId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert('Error updating policy: ' + result.error);
+            } else {
+                // Close modal and refresh page
+                bootstrap.Modal.getInstance(document.getElementById('editPolicyModal')).hide();
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while updating the policy');
+        });
+    });
+    
+    // Delete policy
+    document.querySelectorAll('.btn-delete-policy').forEach(button => {
+        button.addEventListener('click', function() {
+            const policyId = this.getAttribute('data-policy-id');
+            document.getElementById('deletePolicyId').value = policyId;
+            new bootstrap.Modal(document.getElementById('deletePolicyModal')).show();
+        });
+    });
+    
+    // Confirm delete
+    document.getElementById('confirmDeletePolicy').addEventListener('click', function() {
+        const policyId = document.getElementById('deletePolicyId').value;
+        
+        fetch(`/api/retention/policies/${policyId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert('Error deleting policy: ' + result.error);
+            } else {
+                // Close modal and refresh page
+                bootstrap.Modal.getInstance(document.getElementById('deletePolicyModal')).hide();
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while deleting the policy');
+        });
+    });
+    
+    // Apply policy
+    document.querySelectorAll('.btn-apply-policy').forEach(button => {
+        button.addEventListener('click', function() {
+            const policyId = this.getAttribute('data-policy-id');
+            
+            // Disable button and show loading state
+            this.disabled = true;
+            const originalHtml = this.innerHTML;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            
+            fetch(`/api/retention/policies/${policyId}/apply`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(result => {
+                // Reset button
+                this.disabled = false;
+                this.innerHTML = originalHtml;
+                
+                // Show result
+                const resultContainer = document.getElementById('actionResultContent');
+                if (result.error) {
+                    resultContainer.innerHTML = `
+                        <div class="alert alert-danger">
+                            <h5>Error</h5>
+                            <p>${result.error}</p>
+                        </div>
+                        <pre class="bg-dark text-light p-3 rounded">${JSON.stringify(result.details || {}, null, 2)}</pre>
+                    `;
+                } else {
+                    resultContainer.innerHTML = `
+                        <div class="alert alert-success">
+                            <h5>Success</h5>
+                            <p>${result.message}</p>
+                        </div>
+                        <pre class="bg-dark text-light p-3 rounded">${JSON.stringify(result.details || {}, null, 2)}</pre>
+                    `;
+                }
+                
+                new bootstrap.Modal(document.getElementById('actionResultModal')).show();
+            })
+            .catch(error => {
+                // Reset button
+                this.disabled = false;
+                this.innerHTML = originalHtml;
+                
+                console.error('Error:', error);
+                alert('An error occurred while applying the policy');
+            });
+        });
+    });
+    
+    // Apply all policies
+    document.getElementById('applyAllPolicies').addEventListener('click', function() {
+        // Disable button and show loading state
+        this.disabled = true;
+        const originalHtml = this.innerHTML;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Applying...';
+        
+        fetch('/api/retention/apply-all', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(result => {
+            // Reset button
+            this.disabled = false;
+            this.innerHTML = originalHtml;
+            
+            // Show result
+            const resultContainer = document.getElementById('actionResultContent');
+            if (result.error) {
+                resultContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5>Error</h5>
+                        <p>${result.error}</p>
+                    </div>
+                    <pre class="bg-dark text-light p-3 rounded">${JSON.stringify(result.details || {}, null, 2)}</pre>
+                `;
+            } else {
+                resultContainer.innerHTML = `
+                    <div class="alert alert-success">
+                        <h5>Success</h5>
+                        <p>${result.message}</p>
+                    </div>
+                    <pre class="bg-dark text-light p-3 rounded">${JSON.stringify(result.details || {}, null, 2)}</pre>
+                `;
+            }
+            
+            new bootstrap.Modal(document.getElementById('actionResultModal')).show();
+        })
+        .catch(error => {
+            // Reset button
+            this.disabled = false;
+            this.innerHTML = originalHtml;
+            
+            console.error('Error:', error);
+            alert('An error occurred while applying all policies');
+        });
+    });
+    
+    // Initial hiding of source-specific fields
+    document.querySelectorAll('.source-specific').forEach(el => {
+        el.style.display = 'none';
+    });
+    document.querySelectorAll('.edit-source-specific').forEach(el => {
+        el.style.display = 'none';
+    });
+});
+</script>
+{% endblock %}
