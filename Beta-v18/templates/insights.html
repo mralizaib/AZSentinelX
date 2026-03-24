@@ -1,0 +1,510 @@
+{% extends "layout.html" %}
+
+{% block title %}AI Insights - AZ Sentinel X{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-brain me-2"></i>AI-Driven Insights</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-sm btn-info me-2" id="voice-assistant-btn" data-bs-toggle="modal" data-bs-target="#voice-assistant-modal">
+            <i class="fas fa-microphone me-1"></i> Voice Assistant
+        </button>
+        <button type="button" class="btn btn-sm btn-primary me-2" data-bs-toggle="modal" data-bs-target="#create-template-modal">
+            <i class="fas fa-plus me-1"></i> Create Template
+        </button>
+        <button type="button" class="btn btn-sm btn-success" id="quick-analyze-btn">
+            <i class="fas fa-bolt me-1"></i> Quick Analyze
+        </button>
+    </div>
+</div>
+
+<!-- Insights Tabs -->
+<ul class="nav nav-tabs mb-4" id="insightsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if active_tab != 'analyze' %}active{% endif %}" id="templates-tab" data-bs-toggle="tab" data-bs-target="#templates-content" type="button" role="tab" aria-controls="templates-content" aria-selected="{{ 'true' if active_tab != 'analyze' else 'false' }}">
+            <i class="fas fa-file-alt me-1"></i> Analysis Templates
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if active_tab == 'analyze' %}active{% endif %}" id="analyze-tab" data-bs-toggle="tab" data-bs-target="#analyze-content" type="button" role="tab" aria-controls="analyze-content" aria-selected="{{ 'true' if active_tab == 'analyze' else 'false' }}">
+            <i class="fas fa-microscope me-1"></i> Analyze Alerts
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="insightsTabContent">
+    <!-- Templates Tab -->
+    <div class="tab-pane fade {% if active_tab != 'analyze' %}show active{% endif %}" id="templates-content" role="tabpanel" aria-labelledby="templates-tab">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i>AI Insight Templates</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Description</th>
+                                <th>Fields</th>
+                                <th>Model</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="templates-table-body">
+                            {% if templates %}
+                                {% for template in templates %}
+                                <tr>
+                                    <td>{{ template.name }}</td>
+                                    <td>{{ template.description or 'No description' }}</td>
+                                    <td>
+                                        {% for field in template.get_fields() %}
+                                        <span class="badge bg-secondary">{{ field }}</span>
+                                        {% endfor %}
+                                    </td>
+                                    <td><span class="badge bg-primary">{{ template.model_type }}</span></td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-primary btn-use" data-id="{{ template.id }}" title="Use Template">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                            <button class="btn btn-warning btn-edit" data-id="{{ template.id }}" title="Edit Template">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-danger btn-delete" data-id="{{ template.id }}" title="Delete Template">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4">
+                                        <div class="alert alert-info m-0">
+                                            No insight templates found. Create one to get started.
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Analyze Tab -->
+    <div class="tab-pane fade {% if active_tab == 'analyze' %}show active{% endif %}" id="analyze-content" role="tabpanel" aria-labelledby="analyze-tab">
+        <div class="row">
+            <div class="col-lg-5" id="analyze-form-container" {% if show_analyze_form == False %}style="display: none;"{% endif %}>
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-microscope me-2"></i>Alert Analysis</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="analyze-form">
+                            <input type="hidden" id="template-id" value="">
+                            
+                            <div id="selected-template-container" class="mb-3 d-none">
+                                <label class="form-label">Selected Template</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-file-alt"></i></span>
+                                    <input type="text" class="form-control" id="selected-template-name" disabled>
+                                    <button class="btn btn-outline-secondary" type="button" id="clear-template-btn">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Severity Levels to Analyze</label>
+                                <div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="analyze-critical" name="severity-level" value="critical" checked>
+                                        <label class="form-check-label severity-critical" for="analyze-critical">Critical</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="analyze-high" name="severity-level" value="high" checked>
+                                        <label class="form-check-label severity-high" for="analyze-high">High</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="analyze-medium" name="severity-level" value="medium" checked>
+                                        <label class="form-check-label severity-medium" for="analyze-medium">Medium</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="analyze-low" name="severity-level" value="low">
+                                        <label class="form-check-label severity-low" for="analyze-low">Low</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="time-range" class="form-label">Time Range</label>
+                                <select class="form-select" id="time-range">
+                                    <option value="1h">Last 1 Hour</option>
+                                    <option value="6h">Last 6 Hours</option>
+                                    <option value="24h" selected>Last 24 Hours</option>
+                                    <option value="7d">Last 7 Days</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="model-type" class="form-label">AI Model</label>
+                                <select class="form-select" id="model-type">
+                                    <option value="openai" selected>OpenAI</option>
+                                    <option value="deepseek">DeepSeek</option>
+                                    <option value="ollama">Ollama (Local LLM)</option>
+                                </select>
+                            </div>
+                            
+                            <div id="openai-options" class="mb-3">
+                                <div class="form-text mb-2">
+                                    <i class="fas fa-info-circle me-1"></i> Using OpenAI's most advanced model for analysis
+                                </div>
+                            </div>
+                            
+                            <div id="deepseek-options" class="mb-3" style="display: none;">
+                                <div class="form-text mb-2">
+                                    <i class="fas fa-info-circle me-1"></i> Using DeepSeek models for analysis
+                                </div>
+                            </div>
+                            
+                            <div id="ollama-options" class="mb-3" style="display: none;">
+                                <div class="form-text mb-2">
+                                    <i class="fas fa-info-circle me-1"></i> Using local Ollama LLM for analysis (requires running Ollama server)
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="custom-prompt" class="form-label">Custom Analysis Prompt (Optional)</label>
+                                <textarea class="form-control" id="custom-prompt" rows="3" placeholder="Provide specific instructions for the AI analysis..."></textarea>
+                                <div class="form-text">Leave empty to use default prompt</div>
+                            </div>
+                            
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-brain me-1"></i> Analyze Alerts
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-7" id="analysis-result-container" {% if show_analyze_form == False %}class="col-lg-12"{% endif %}>
+                <!-- Conversation mode for AI Security Search -->
+                <div id="conversation-container" style="display:none; height: 600px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 6px; background-color: #f8f9fa;">
+                    <div id="conversation-messages" style="padding: 15px;">
+                        <!-- Messages will appear here -->
+                    </div>
+                </div>
+                <div id="conversation-input" style="display:none; margin-top: 15px;">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="conversation-message-input" placeholder="Ask a follow-up question about the alerts...">
+                        <button class="btn btn-primary" id="conversation-send-btn" type="button">
+                            <i class="fas fa-paper-plane me-1"></i> Send
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Analysis results -->
+                <div id="analysis-result">
+                    <!-- Analysis results will appear here -->
+                    <div class="card">
+                        <div class="card-body text-center p-5">
+                            <div class="mb-4">
+                                <i class="fas fa-brain fs-1 text-muted"></i>
+                            </div>
+                            <h4>AI-Driven Insights</h4>
+                            <p class="text-muted mb-4">Select alert data and an AI model to analyze security alerts and gain valuable insights.</p>
+                            <button class="btn btn-outline-primary" id="quick-analyze-btn2">
+                                <i class="fas fa-bolt me-1"></i> Quick Analyze
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Template Modal -->
+<div class="modal fade" id="create-template-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Create Analysis Template</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-template-form">
+                    <div class="mb-3">
+                        <label for="template-name" class="form-label">Template Name</label>
+                        <input type="text" class="form-control" id="template-name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="template-description" class="form-label">Description (Optional)</label>
+                        <textarea class="form-control" id="template-description" rows="2"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Fields to Include in Analysis</label>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="field-rule-description" name="field" value="rule.description" checked>
+                                    <label class="form-check-label" for="field-rule-description">Rule Description</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="field-rule-id" name="field" value="rule.id" checked>
+                                    <label class="form-check-label" for="field-rule-id">Rule ID</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="field-rule-level" name="field" value="rule.level" checked>
+                                    <label class="form-check-label" for="field-rule-level">Rule Level</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="field-rule-groups" name="field" value="rule.groups" checked>
+                                    <label class="form-check-label" for="field-rule-groups">Rule Groups</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="field-agent-name" name="field" value="agent.name" checked>
+                                    <label class="form-check-label" for="field-agent-name">Agent Name</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="field-agent-ip" name="field" value="agent.ip" checked>
+                                    <label class="form-check-label" for="field-agent-ip">Agent IP</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="field-timestamp" name="field" value="@timestamp" checked>
+                                    <label class="form-check-label" for="field-timestamp">Timestamp</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="field-data" name="field" value="data" checked>
+                                    <label class="form-check-label" for="field-data">Alert Data</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="field-syscheck" name="field" value="syscheck">
+                                    <label class="form-check-label" for="field-syscheck">Syscheck</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="create-model-type" class="form-label">AI Model</label>
+                        <select class="form-select" id="create-model-type">
+                            <option value="openai" selected>OpenAI</option>
+                            <option value="deepseek">DeepSeek</option>
+                            <option value="ollama">Ollama (Local LLM)</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" form="create-template-form">Create Template</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Template Modal -->
+<div class="modal fade" id="edit-template-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Analysis Template</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-template-form">
+                    <input type="hidden" id="edit-template-id">
+                    
+                    <div class="mb-3">
+                        <label for="edit-template-name" class="form-label">Template Name</label>
+                        <input type="text" class="form-control" id="edit-template-name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-template-description" class="form-label">Description (Optional)</label>
+                        <textarea class="form-control" id="edit-template-description" rows="2"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Fields to Include in Analysis</label>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit-field-rule-description" name="edit-field" value="rule.description">
+                                    <label class="form-check-label" for="edit-field-rule-description">Rule Description</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit-field-rule-id" name="edit-field" value="rule.id">
+                                    <label class="form-check-label" for="edit-field-rule-id">Rule ID</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit-field-rule-level" name="edit-field" value="rule.level">
+                                    <label class="form-check-label" for="edit-field-rule-level">Rule Level</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit-field-rule-groups" name="edit-field" value="rule.groups">
+                                    <label class="form-check-label" for="edit-field-rule-groups">Rule Groups</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit-field-agent-name" name="edit-field" value="agent.name">
+                                    <label class="form-check-label" for="edit-field-agent-name">Agent Name</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit-field-agent-ip" name="edit-field" value="agent.ip">
+                                    <label class="form-check-label" for="edit-field-agent-ip">Agent IP</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit-field-timestamp" name="edit-field" value="@timestamp">
+                                    <label class="form-check-label" for="edit-field-timestamp">Timestamp</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit-field-data" name="edit-field" value="data">
+                                    <label class="form-check-label" for="edit-field-data">Alert Data</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit-field-syscheck" name="edit-field" value="syscheck">
+                                    <label class="form-check-label" for="edit-field-syscheck">Syscheck</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-model-type" class="form-label">AI Model</label>
+                        <select class="form-select" id="edit-model-type">
+                            <option value="openai">OpenAI</option>
+                            <option value="deepseek">DeepSeek</option>
+                            <option value="ollama">Ollama (Local LLM)</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" form="edit-template-form">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Voice Assistant Modal -->
+<div class="modal fade" id="voice-assistant-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fas fa-microphone me-2"></i>Voice Assistant - Ask About Wazuh</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <p class="text-muted mb-3">Ask any question about Wazuh, security alerts, or threat analysis in any language</p>
+                    
+                    <button type="button" class="btn btn-lg btn-info rounded-circle p-4" id="insights-voice-btn">
+                        <i class="fas fa-microphone fa-2x"></i>
+                    </button>
+                    <div id="voice-status" class="mt-2 text-muted"></div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="voice-question-input" class="form-label">Or type your question:</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="voice-question-input" placeholder="Ask about Wazuh, security alerts, or threat analysis...">
+                        <button class="btn btn-primary" type="button" id="ask-question-btn">
+                            <i class="fas fa-paper-plane"></i> Ask
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="include-alert-context" checked>
+                    <label class="form-check-label" for="include-alert-context">
+                        Include recent alert data for context
+                    </label>
+                </div>
+                
+                <div id="voice-qa-result" class="d-none">
+                    <hr>
+                    <div class="card bg-dark">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-robot me-2"></i>AI Response</span>
+                            <button class="btn btn-sm btn-outline-light" id="speak-response-btn" title="Listen to response">
+                                <i class="fas fa-volume-up"></i>
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="qa-summary" class="alert alert-info mb-3"></div>
+                            <div id="qa-full-answer"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="voice-qa-loading" class="d-none text-center py-4">
+                    <div class="spinner-border text-info" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Processing your question...</p>
+                </div>
+                
+                <div id="voice-qa-error" class="d-none alert alert-danger"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Insights specific JavaScript -->
+<script src="{{ url_for('static', filename='js/insights.js') }}"></script>
+<script>
+    document.getElementById('quick-analyze-btn2').addEventListener('click', function() {
+        prepareQuickAnalyze();
+    });
+    
+    document.getElementById('clear-template-btn').addEventListener('click', function() {
+        document.getElementById('template-id').value = '';
+        document.getElementById('selected-template-container').classList.add('d-none');
+    });
+</script>
+{% endblock %}
