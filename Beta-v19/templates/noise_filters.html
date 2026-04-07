@@ -1,0 +1,447 @@
+{% extends "layout.html" %}
+{% block title %}Log Noise Management — ByteIT SentinelX{% endblock %}
+
+{% block content %}
+<style>
+  .nf-card   { background:#161b27; border:1px solid #1e2535; border-radius:12px; }
+  .stat-card { background:linear-gradient(135deg,#161b27,#1a2038); border:1px solid #1e2535; border-radius:12px; padding:22px 24px; }
+  .stat-val  { font-size:2rem; font-weight:800; line-height:1; }
+  .snr-bar   { height:18px; border-radius:9px; overflow:hidden; background:#1e2535; }
+  .snr-signal{ height:100%; background:linear-gradient(90deg,#10b981,#3b82f6); transition:width .8s ease; }
+  .filter-row{ border-bottom:1px solid #1e2535; transition:background .15s; }
+  .filter-row:hover{ background:rgba(255,255,255,.02); }
+  .type-badge{ border-radius:4px; padding:2px 8px; font-size:10px; font-weight:700; text-transform:uppercase; }
+  .type-rule_id             { background:#1e3a5f; color:#93c5fd; }
+  .type-min_level           { background:#14532d; color:#86efac; }
+  .type-rule_group          { background:#4c1d95; color:#c4b5fd; }
+  .type-description_contains{ background:#78350f; color:#fcd34d; }
+  .type-agent               { background:#1f2937; color:#d1d5db; }
+  .noise-row  { border-left:4px solid #ef4444; }
+  .signal-row { border-left:4px solid #10b981; }
+  .threat-card{ background:#1f0606; border:1px solid #7f1d1d; border-radius:10px; padding:16px 20px; }
+</style>
+
+<!-- Header -->
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h4 class="text-light mb-1">
+      <i class="fas fa-filter-circle-xmark me-2" style="color:#f59e0b"></i>
+      Log Noise Management
+    </h4>
+    <small class="text-muted">SOC Signal Optimisation — Filter irrelevant events so analysts focus on real threats</small>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <select class="form-select form-select-sm bg-dark text-light border-secondary" id="hoursSelect" onchange="loadAnalysis()" style="width:auto">
+      <option value="6">Last 6 hours</option>
+      <option value="24" selected>Last 24 hours</option>
+      <option value="48">Last 48 hours</option>
+      <option value="168">Last 7 days</option>
+    </select>
+    <button class="btn btn-sm btn-outline-secondary" onclick="loadAll()">
+      <i class="fas fa-sync-alt me-1"></i>Refresh
+    </button>
+    <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#addFilterModal">
+      <i class="fas fa-plus me-1"></i>Add Filter
+    </button>
+  </div>
+</div>
+
+<!-- Threat Alert Banner (KMSpico) -->
+<div class="threat-card mb-4">
+  <div class="d-flex align-items-start gap-3">
+    <i class="fas fa-radiation fa-lg mt-1" style="color:#ef4444;flex-shrink:0"></i>
+    <div>
+      <div class="fw-bold" style="color:#fca5a5">Active Threat Detected in Your Environment</div>
+      <div class="text-light" style="font-size:13px;margin-top:4px">
+        <strong>HackTool:MSIL/AutoKms!pz</strong> (KMSpico) detected on <strong>BMS5-76-27</strong>
+        via <code style="color:#fca5a5">C:\Program Files\KMSpico\Service_KMS.exe</code> —
+        Windows Defender Rule <strong>62123</strong>, Level 12 (HIGH).
+        This is a software licence cracker and an immediate compliance/security risk.
+        Multiple detection events observed from January 2026 onwards.
+      </div>
+      <div class="mt-2" style="font-size:12px;color:#9ca3af">
+        <i class="fas fa-arrow-right me-1 text-warning"></i>
+        Recommended: Isolate BMS5-76-27, uninstall KMSpico, review other BMS-group agents for similar tools.
+        This rule (<code>62123</code>) is intentionally NOT suppressed — it will always surface.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SNR Stats -->
+<div class="row g-3 mb-4" id="statsRow">
+  <div class="col-md-3 col-6">
+    <div class="stat-card">
+      <div class="d-flex justify-content-between mb-2"><span class="text-muted small">Total Alerts</span><i class="fas fa-database text-muted"></i></div>
+      <div class="stat-val text-light" id="statTotal">—</div>
+      <div class="text-muted" style="font-size:11px;margin-top:4px" id="statWindow">in selected window</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card">
+      <div class="d-flex justify-content-between mb-2"><span class="text-muted small">Noise Volume</span><i class="fas fa-volume-xmark" style="color:#ef4444"></i></div>
+      <div class="stat-val text-danger" id="statNoise">—</div>
+      <div class="text-muted" style="font-size:11px;margin-top:4px">suppressed by active filters</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card">
+      <div class="d-flex justify-content-between mb-2"><span class="text-muted small">Signal Retained</span><i class="fas fa-crosshairs" style="color:#10b981"></i></div>
+      <div class="stat-val text-success" id="statSignal">—</div>
+      <div class="text-muted" style="font-size:11px;margin-top:4px">actionable events</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card">
+      <div class="d-flex justify-content-between mb-2"><span class="text-muted small">Signal-to-Noise</span><i class="fas fa-gauge-high" style="color:#3b82f6"></i></div>
+      <div class="stat-val text-info" id="statSNR">—</div>
+      <div class="mt-2">
+        <div class="snr-bar"><div class="snr-signal" id="snrBar" style="width:0%"></div></div>
+        <div class="d-flex justify-content-between mt-1" style="font-size:10px;color:#6b7280">
+          <span>Signal</span><span>Noise</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main content: Top Rules + Active Filters -->
+<div class="row g-3">
+
+  <!-- Top Rule Sources -->
+  <div class="col-xl-6">
+    <div class="nf-card p-0">
+      <div class="d-flex align-items-center justify-content-between p-3 border-bottom border-secondary">
+        <div class="fw-semibold text-light"><i class="fas fa-chart-bar me-2 text-warning"></i>Top Alert Sources</div>
+        <small class="text-muted">Colour = noise (red) vs signal (green)</small>
+      </div>
+      <div id="topRulesContainer" style="max-height:480px;overflow-y:auto">
+        <div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin me-2"></i>Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Filters -->
+  <div class="col-xl-6">
+    <div class="nf-card p-0">
+      <div class="d-flex align-items-center justify-content-between p-3 border-bottom border-secondary">
+        <div class="fw-semibold text-light"><i class="fas fa-filter me-2 text-info"></i>Active Filters</div>
+        <small class="text-muted" id="filterCount">Loading…</small>
+      </div>
+      <div id="filtersContainer" style="max-height:480px;overflow-y:auto">
+        <div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin me-2"></i>Loading…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SOC Recommendations -->
+<div class="nf-card p-4 mt-3">
+  <div class="fw-semibold text-light mb-3">
+    <i class="fas fa-clipboard-list me-2 text-blue-400" style="color:#60a5fa"></i>
+    SOC Recommendations — Log Optimisation
+  </div>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div style="background:#0f1420;border-radius:8px;padding:16px;border:1px solid #1e2535">
+        <div class="fw-semibold text-warning mb-2"><i class="fas fa-server me-2"></i>Wazuh Server-Side (Highest Impact)</div>
+        <ul class="mb-0" style="font-size:13px;color:#d1d5db;padding-left:18px">
+          <li class="mb-1">Add <code style="color:#93c5fd">rule_id 4804</code> to <code>/var/ossec/etc/rules/local_rules.xml</code> with <code>&lt;overwrite&gt;</code> to set <code>no_alert: yes</code> — eliminates 295k/day at source</li>
+          <li class="mb-1">Set <code>min_severity</code> in your Wazuh filebeat/logstash pipeline to only forward events with <code>rule.level ≥ 7</code></li>
+          <li class="mb-1">For SonicWall: use Wazuh <code>localfile</code> decoder overrides to raise the minimum level for IKEv2 events</li>
+          <li class="mb-1">Configure FIM exclusions in <code>ossec.conf</code> for high-churn paths (temp dirs, Windows update staging)</li>
+          <li>Use Wazuh active-response <code>&lt;group&gt;sonicwall&lt;/group&gt;</code> level override to suppress rules 4803/4804</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div style="background:#0f1420;border-radius:8px;padding:16px;border:1px solid #1e2535">
+        <div class="fw-semibold text-success mb-2"><i class="fas fa-shield-check me-2"></i>SentinelX Application Layer (Active Now)</div>
+        <ul class="mb-0" style="font-size:13px;color:#d1d5db;padding-left:18px">
+          <li class="mb-1">All 12 default filters above are <strong>active</strong> — suppressed events will not be stored or shown in dashboards</li>
+          <li class="mb-1">Minimum level filter (<code>level ≥ 7</code>) prevents low-value events from being stored in the database</li>
+          <li class="mb-1">ITDR/XDR engine uses targeted queries and is <strong>not affected</strong> by FIM noise</li>
+          <li class="mb-1">Add custom filters below to tune further (agent-specific, description-based, or additional rule IDs)</li>
+          <li>Review the Top Alert Sources panel weekly and suppress any new recurring noise rules</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div style="background:#0f1420;border-radius:8px;padding:16px;border:1px solid #1e2535">
+        <div class="fw-semibold" style="color:#a78bfa;margin-bottom:8px"><i class="fas fa-exclamation-triangle me-2"></i>Do NOT Suppress</div>
+        <ul class="mb-0" style="font-size:13px;color:#d1d5db;padding-left:18px">
+          <li class="mb-1"><code>62123</code> — Windows Defender malware detections (KMSpico/HackTool)</li>
+          <li class="mb-1"><code>60104 / 60106+</code> — Windows logon failures &amp; privilege escalation</li>
+          <li class="mb-1"><code>5501+ / 5710+</code> — Wazuh agent disconnect events</li>
+          <li class="mb-1">Any rule with <code>level ≥ 12</code></li>
+          <li>SonicWall rules related to blocked inbound connections (rule 4801)</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div style="background:#0f1420;border-radius:8px;padding:16px;border:1px solid #1e2535">
+        <div class="fw-semibold text-info mb-2"><i class="fas fa-chart-line me-2"></i>Expected Outcome</div>
+        <ul class="mb-0" style="font-size:13px;color:#d1d5db;padding-left:18px">
+          <li class="mb-1">Estimated noise reduction: <strong style="color:#10b981">~92–95%</strong> of daily alert volume suppressed</li>
+          <li class="mb-1">Dashboard alert feed will show predominantly <code>level ≥ 7</code> events</li>
+          <li class="mb-1">MTTR (Mean Time to Respond) improvement: analysts see threats without scrolling through thousands of IKEv2 entries</li>
+          <li class="mb-1">ITDR scans will correlate real behaviour patterns more accurately</li>
+          <li>False negative risk: <strong>Low</strong> — all suppressed rules are confirmed infrastructure noise</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ────────────────────────────────────────────────────────── -->
+<!-- Add Filter Modal                                           -->
+<!-- ────────────────────────────────────────────────────────── -->
+<div class="modal fade" id="addFilterModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:#111827;border:1px solid #1e2535">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title text-light"><i class="fas fa-plus-circle me-2 text-success"></i>Add Noise Filter</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="background:#0d1117">
+        <form id="addFilterForm" onsubmit="submitFilter(event)">
+          <div class="mb-3">
+            <label class="form-label text-muted small">Filter Name *</label>
+            <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" name="name" required placeholder="e.g. Block Sonicwall IKEv2 noise">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label text-muted small">Filter Type *</label>
+              <select class="form-select form-select-sm bg-dark text-light border-secondary" name="filter_type" onchange="updateValueHint(this)">
+                <option value="rule_id">Rule ID(s)</option>
+                <option value="min_level">Minimum Level</option>
+                <option value="rule_group">Rule Group</option>
+                <option value="description_contains">Description Contains</option>
+                <option value="agent">Agent Name</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label text-muted small">Action</label>
+              <select class="form-select form-select-sm bg-dark text-light border-secondary" name="action">
+                <option value="suppress">Suppress (hide completely)</option>
+                <option value="deprioritize">Deprioritize (lower visibility)</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted small">Filter Value *</label>
+            <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" name="filter_value" required placeholder="e.g. 4804 or 4803,61102 for multiple IDs">
+            <div class="form-text" id="valueHint" style="font-size:11px;color:#6b7280">For rule_id: enter one or more comma-separated Wazuh rule IDs</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted small">Estimated Daily Volume (optional)</label>
+            <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" name="estimated_daily" value="0" min="0">
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted small">Notes / Justification</label>
+            <textarea class="form-control form-control-sm bg-dark text-light border-secondary" name="notes" rows="2" placeholder="Why is this noise? What conditions would make it relevant again?"></textarea>
+          </div>
+          <button type="submit" class="btn btn-success btn-sm w-100"><i class="fas fa-plus me-1"></i>Add Filter</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+function fmtNum(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1)+'M';
+  if (n >= 1000)    return (n/1000).toFixed(1)+'k';
+  return String(n);
+}
+
+function typeBadge(t) {
+  const labels = {
+    rule_id:'Rule ID', min_level:'Min Level', rule_group:'Group',
+    description_contains:'Description', agent:'Agent',
+  };
+  return `<span class="type-badge type-${t}">${labels[t]||t}</span>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Load all
+// ─────────────────────────────────────────────────────────────────────────────
+function loadAll() {
+  loadAnalysis();
+  loadFilters();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Analysis
+// ─────────────────────────────────────────────────────────────────────────────
+function loadAnalysis() {
+  const hours = document.getElementById('hoursSelect').value;
+  document.getElementById('statWindow').textContent = `in last ${hours}h`;
+  document.getElementById('topRulesContainer').innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin me-2"></i>Querying OpenSearch…</div>';
+
+  fetch(`/noise-filters/api/analysis?hours=${hours}`)
+    .then(r=>r.json())
+    .then(d=>{
+      if (d.error) {
+        document.getElementById('topRulesContainer').innerHTML = `<div class="text-center text-danger py-4">${d.error}</div>`;
+        return;
+      }
+
+      document.getElementById('statTotal').textContent  = fmtNum(d.total);
+      document.getElementById('statNoise').textContent  = fmtNum(d.suppressed_total||0);
+
+      const signal = d.total - (d.suppressed_total||0);
+      document.getElementById('statSignal').textContent = fmtNum(signal);
+      document.getElementById('statSNR').textContent    = (d.signal_pct||0)+'%';
+      document.getElementById('snrBar').style.width     = (d.signal_pct||0)+'%';
+
+      renderTopRules(d.top_rules||[], d.total);
+    })
+    .catch(e=>{
+      document.getElementById('topRulesContainer').innerHTML = `<div class="text-center text-danger py-4">${e}</div>`;
+    });
+}
+
+function renderTopRules(rules, total) {
+  const el = document.getElementById('topRulesContainer');
+  if (!rules.length) {
+    el.innerHTML = '<div class="text-center text-muted py-4">No data</div>';
+    return;
+  }
+
+  const maxCount = rules[0]?.count || 1;
+
+  el.innerHTML = rules.map(r => {
+    const barW = Math.round(r.count / maxCount * 100);
+    const rowCls = r.is_noise ? 'noise-row' : 'signal-row';
+    const icon   = r.is_noise
+      ? '<i class="fas fa-times-circle text-danger me-1" title="Suppressed by active filter"></i>'
+      : '<i class="fas fa-check-circle text-success me-1" title="High-value signal"></i>';
+    return `<div class="p-3 filter-row ${rowCls}">
+      <div class="d-flex justify-content-between align-items-start mb-1">
+        <div>
+          ${icon}
+          <span class="text-light fw-semibold" style="font-size:13px">Rule ${r.rule_id}</span>
+          <span class="text-muted ms-2" style="font-size:11px">Level ${r.level}</span>
+        </div>
+        <div class="text-end">
+          <span class="fw-bold" style="font-size:14px;color:${r.is_noise?'#ef4444':'#10b981'}">${fmtNum(r.count)}</span>
+          <span class="text-muted ms-1" style="font-size:11px">(${r.pct}%)</span>
+        </div>
+      </div>
+      <div class="text-muted mb-2" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.description||'—'}</div>
+      <div style="background:#1e2535;height:4px;border-radius:2px">
+        <div style="width:${barW}%;height:100%;background:${r.is_noise?'#ef4444':'#10b981'};border-radius:2px;transition:width .5s"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Filters list
+// ─────────────────────────────────────────────────────────────────────────────
+function loadFilters() {
+  fetch('/noise-filters/api/filters').then(r=>r.json()).then(d=>{
+    const filters = d.results || [];
+    const active  = filters.filter(f=>f.enabled).length;
+    document.getElementById('filterCount').textContent = `${active} active / ${filters.length} total`;
+
+    const el = document.getElementById('filtersContainer');
+    if (!filters.length) {
+      el.innerHTML = '<div class="text-center text-muted py-4 small">No filters. <a href="#" onclick="seedDefaults()">Seed defaults</a>.</div>';
+      return;
+    }
+
+    el.innerHTML = filters.map(f => {
+      const estLabel = f.estimated_daily > 0 ? `~${fmtNum(f.estimated_daily)}/day` : '';
+      const sysLabel = f.is_system ? '<span class="badge bg-secondary ms-1" style="font-size:9px">SYSTEM</span>' : '';
+      return `<div class="p-3 filter-row ${f.enabled?'':'opacity-50'}">
+        <div class="d-flex align-items-start justify-content-between gap-2">
+          <div class="flex-grow-1">
+            <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+              <span class="text-light fw-semibold" style="font-size:13px">${f.name}</span>
+              ${sysLabel}
+              ${typeBadge(f.filter_type)}
+              <code style="font-size:11px;color:#60a5fa">${f.filter_value}</code>
+              ${estLabel?`<span class="text-muted" style="font-size:11px">${estLabel}</span>`:''}
+            </div>
+            ${f.notes ? `<div class="text-muted" style="font-size:11px;font-style:italic">${f.notes.slice(0,120)}${f.notes.length>120?'…':''}</div>` : ''}
+          </div>
+          <div class="d-flex gap-1 flex-shrink-0">
+            <button class="btn btn-xs ${f.enabled?'btn-outline-warning':'btn-outline-success'}" style="font-size:11px;padding:2px 8px"
+              onclick="toggleFilter(${f.id},${!f.enabled})">${f.enabled?'Disable':'Enable'}</button>
+            ${!f.is_system?`<button class="btn btn-xs btn-outline-danger" style="font-size:11px;padding:2px 8px" onclick="deleteFilter(${f.id})">Del</button>`:''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  });
+}
+
+function toggleFilter(id, enabled) {
+  fetch(`/noise-filters/api/filters/${id}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({enabled})
+  }).then(()=>loadAll());
+}
+
+function deleteFilter(id) {
+  if (!confirm('Delete this filter?')) return;
+  fetch(`/noise-filters/api/filters/${id}`, {method:'DELETE'}).then(()=>loadAll());
+}
+
+function seedDefaults() {
+  fetch('/noise-filters/api/filters/seed', {method:'POST'}).then(()=>loadAll());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Add filter
+// ─────────────────────────────────────────────────────────────────────────────
+const VALUE_HINTS = {
+  rule_id:              'Comma-separated Wazuh rule IDs, e.g. 4804 or 4803,61102',
+  min_level:            'Integer: only store/show events at level ≥ this value, e.g. 7',
+  rule_group:           'Exact rule group name, e.g. sonicwall or authentication_failed',
+  description_contains: 'Phrase to match in rule.description, e.g. IKEv2 Unable to find',
+  agent:                'Exact agent name to suppress entirely, e.g. testbox-01',
+};
+
+function updateValueHint(sel) {
+  document.getElementById('valueHint').textContent = VALUE_HINTS[sel.value] || '';
+}
+
+function submitFilter(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  fetch('/noise-filters/api/filters', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      name:             fd.get('name'),
+      filter_type:      fd.get('filter_type'),
+      filter_value:     fd.get('filter_value'),
+      action:           fd.get('action'),
+      notes:            fd.get('notes'),
+      estimated_daily:  parseInt(fd.get('estimated_daily')||'0'),
+      enabled:          true,
+    })
+  }).then(r=>r.json()).then(d=>{
+    if (d.success) {
+      e.target.reset();
+      bootstrap.Modal.getInstance(document.getElementById('addFilterModal'))?.hide();
+      loadAll();
+    } else {
+      alert('Error: '+(d.error||'Unknown'));
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', loadAll);
+</script>
+{% endblock %}
