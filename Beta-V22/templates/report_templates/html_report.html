@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ title }}</title>
+<style>
+/* ── Reset & base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #1a1a2e;
+    background: #fff;
+}
+
+/* ── Page layout for PDF ── */
+@page {
+    size: A4;
+    margin: 18mm 14mm 18mm 14mm;
+}
+@media print {
+    body { font-size: 11px; }
+    .no-break { page-break-inside: avoid; }
+    .page-break { page-break-before: always; }
+    .alert-row-detail { display: table-row !important; }
+}
+
+/* ── HEADER ── */
+.report-header {
+    background: linear-gradient(135deg, #0d1b4b 0%, #1a3a8f 60%, #0057b8 100%);
+    color: #fff;
+    padding: 28px 32px 22px;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 0;
+}
+.header-logo {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+    background: #fff;
+    border-radius: 10px;
+    padding: 5px;
+    flex-shrink: 0;
+}
+.header-logo-placeholder {
+    width: 72px; height: 72px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; color: #fff;
+    flex-shrink: 0;
+}
+.header-text { flex: 1; }
+.header-brand {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.7);
+    margin-bottom: 4px;
+}
+.header-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+.header-subtitle { font-size: 12px; color: rgba(255,255,255,0.75); }
+.header-meta {
+    text-align: right;
+    font-size: 11px;
+    color: rgba(255,255,255,0.8);
+    line-height: 1.8;
+    flex-shrink: 0;
+}
+.header-meta strong { color: #fff; }
+
+/* ── Blue accent bar ── */
+.accent-bar {
+    height: 5px;
+    background: linear-gradient(90deg, #00c9ff, #0057b8, #c0392b);
+    margin-bottom: 24px;
+}
+
+/* ── Wrapper ── */
+.container { padding: 0 4px; }
+
+/* ── Section titles ── */
+.section-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0d1b4b;
+    border-left: 4px solid #0057b8;
+    padding: 4px 10px;
+    margin: 28px 0 14px;
+    background: #f0f4ff;
+    border-radius: 0 4px 4px 0;
+}
+
+/* ── Stat cards ── */
+.stat-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+.stat-card {
+    flex: 1;
+    min-width: 110px;
+    background: #fff;
+    border: 1px solid #e0e7ff;
+    border-radius: 8px;
+    padding: 14px 10px;
+    text-align: center;
+}
+.stat-card.total  { border-top: 4px solid #0057b8; }
+.stat-card.crit   { border-top: 4px solid #c0392b; }
+.stat-card.high   { border-top: 4px solid #e67e22; }
+.stat-card.med    { border-top: 4px solid #f1c40f; }
+.stat-card.low    { border-top: 4px solid #27ae60; }
+.stat-value { font-size: 28px; font-weight: 800; line-height: 1; }
+.stat-label { font-size: 11px; color: #6b7280; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.8px; }
+.c-blue   { color: #0057b8; }
+.c-red    { color: #c0392b; }
+.c-orange { color: #e67e22; }
+.c-yellow { color: #c8980a; }
+.c-green  { color: #27ae60; }
+.c-gray   { color: #6b7280; }
+
+/* ── Severity bar chart ── */
+.sev-bars { margin-bottom: 24px; }
+.sev-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.sev-bar-label { width: 70px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.sev-bar-track { flex: 1; height: 14px; background: #e9ecef; border-radius: 7px; overflow: hidden; }
+.sev-bar-fill { height: 100%; border-radius: 7px; }
+.sev-bar-count { width: 50px; text-align: right; font-size: 11px; font-weight: 700; color: #374151; }
+.fill-crit   { background: #c0392b; }
+.fill-high   { background: #e67e22; }
+.fill-med    { background: #f1c40f; }
+.fill-low    { background: #27ae60; }
+
+/* ── Download metadata box ── */
+.meta-box {
+    background: #f8faff;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    font-size: 12px;
+}
+.meta-item { display: flex; flex-direction: column; gap: 2px; }
+.meta-key { color: #6b7280; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; }
+.meta-val { font-weight: 700; color: #0d1b4b; font-size: 13px; }
+
+/* ── Alerts table ── */
+.alerts-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-bottom: 6px;
+}
+.alerts-table thead tr {
+    background: #0d1b4b;
+    color: #fff;
+}
+.alerts-table th {
+    padding: 10px 8px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+.alerts-table tbody tr.main-row:nth-child(4n+1),
+.alerts-table tbody tr.main-row:nth-child(4n+2) {
+    background: #f9fafb;
+}
+.alerts-table tbody tr.main-row:nth-child(4n+3),
+.alerts-table tbody tr.main-row:nth-child(4n+4) {
+    background: #ffffff;
+}
+.alerts-table td {
+    padding: 8px 8px;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+}
+.alerts-table tr.log-row td {
+    padding: 0 8px 10px 8px;
+    background: inherit;
+    border-bottom: 2px solid #d1d5db;
+}
+
+/* ── Severity badge ── */
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+.badge-critical { background: #fde8e8; color: #c0392b; border: 1px solid #f5c6c6; }
+.badge-high     { background: #fef3cd; color: #b45309; border: 1px solid #fde68a; }
+.badge-medium   { background: #fffbeb; color: #c8980a; border: 1px solid #fde68a; }
+.badge-low      { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+.badge-unknown  { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+
+/* ── Full log block ── */
+.full-log-box {
+    background: #0d1117;
+    color: #c9d1d9;
+    border-radius: 5px;
+    padding: 8px 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 160px;
+    overflow: hidden;
+    margin-top: 4px;
+}
+.log-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 3px;
+}
+
+/* ── Footer ── */
+.report-footer {
+    margin-top: 40px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #0d1b4b 0%, #1a3a8f 100%);
+    border-radius: 0 0 8px 8px;
+    color: rgba(255,255,255,0.75);
+    font-size: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.footer-brand { color: #fff; font-weight: 700; font-size: 11px; }
+.confidential {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* ── Info box (no alerts) ── */
+.info-box {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 6px;
+    padding: 20px;
+    text-align: center;
+    color: #0369a1;
+    font-size: 13px;
+}
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<div class="report-header">
+    {% if logo_data_uri %}
+    <img src="{{ logo_data_uri }}" class="header-logo" alt="ByteIT Logo">
+    {% else %}
+    <div class="header-logo-placeholder">BI</div>
+    {% endif %}
+
+    <div class="header-text">
+        <div class="header-brand">ByteIT SentinalX &nbsp;·&nbsp; Beta-v18</div>
+        <div class="header-title">Security Alert Report</div>
+        <div class="header-subtitle">
+            Reporting Period: {{ period.start }} &rarr; {{ period.end }}
+        </div>
+    </div>
+
+    <div class="header-meta">
+        <div><strong>Generated:</strong> {{ generated_at }}</div>
+        <div><strong>Downloaded By:</strong> {{ downloaded_by }}</div>
+        <div><strong>Download Time:</strong> {{ downloaded_at }}</div>
+        <div><strong>Total Alerts:</strong> {{ total_alerts }}</div>
+    </div>
+</div>
+<div class="accent-bar"></div>
+
+<div class="container">
+
+    <!-- ══ DOWNLOAD METADATA ══ -->
+    <div class="meta-box no-break">
+        <div class="meta-item">
+            <span class="meta-key">Report Generated</span>
+            <span class="meta-val">{{ generated_at }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="meta-key">Downloaded By (User ID)</span>
+            <span class="meta-val">{{ downloaded_by }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="meta-key">Date &amp; Time of Download</span>
+            <span class="meta-val">{{ downloaded_at }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="meta-key">Reporting Period</span>
+            <span class="meta-val">{{ period.start }} → {{ period.end }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="meta-key">Severity Scope</span>
+            <span class="meta-val">{{ severity_levels | join(', ') | title }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="meta-key">Timezone</span>
+            <span class="meta-val">PKT (UTC+5)</span>
+        </div>
+    </div>
+
+    <!-- ══ SUMMARY STATS ══ -->
+    <div class="section-title">Executive Summary</div>
+
+    <div class="stat-grid no-break">
+        <div class="stat-card total">
+            <div class="stat-value c-blue">{{ total_alerts }}</div>
+            <div class="stat-label">Total Alerts</div>
+        </div>
+        <div class="stat-card crit">
+            <div class="stat-value c-red">{{ alert_counts.critical | default(0) }}</div>
+            <div class="stat-label">Critical</div>
+        </div>
+        <div class="stat-card high">
+            <div class="stat-value c-orange">{{ alert_counts.high | default(0) }}</div>
+            <div class="stat-label">High</div>
+        </div>
+        <div class="stat-card med">
+            <div class="stat-value c-yellow">{{ alert_counts.medium | default(0) }}</div>
+            <div class="stat-label">Medium</div>
+        </div>
+        <div class="stat-card low">
+            <div class="stat-value c-green">{{ alert_counts.low | default(0) }}</div>
+            <div class="stat-label">Low</div>
+        </div>
+    </div>
+
+    <!-- ══ SEVERITY DISTRIBUTION ══ -->
+    <div class="section-title">Severity Distribution</div>
+    <div class="sev-bars no-break">
+        {% for sev, colour in [('critical','fill-crit'), ('high','fill-high'), ('medium','fill-med'), ('low','fill-low')] %}
+        {% set info = severity_bar.get(sev, {'count': 0, 'pct': 0}) %}
+        <div class="sev-bar-row">
+            <div class="sev-bar-label">{{ sev | capitalize }}</div>
+            <div class="sev-bar-track">
+                <div class="sev-bar-fill {{ colour }}" style="width: {{ info.pct }}%;"></div>
+            </div>
+            <div class="sev-bar-count">{{ info.count }} ({{ info.pct }}%)</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- ══ ALERT DETAILS ══ -->
+    <div class="section-title">Alert Details with Full Logs</div>
+
+    {% if alerts %}
+    <table class="alerts-table">
+        <thead>
+            <tr>
+                <th style="width:140px">Timestamp (PKT)</th>
+                <th style="width:120px">Agent</th>
+                <th style="width:55px">Rule ID</th>
+                <th style="width:50px">Level</th>
+                <th style="width:80px">Severity</th>
+                <th>Description / Full Log</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for alert in alerts %}
+        {% set source = alert.source %}
+        {% set level = source.rule.level | default(0) %}
+        {% if level >= 15 %}
+            {% set sev = 'critical' %}
+            {% set badge_cls = 'badge-critical' %}
+        {% elif level >= 12 %}
+            {% set sev = 'high' %}
+            {% set badge_cls = 'badge-high' %}
+        {% elif level >= 7 %}
+            {% set sev = 'medium' %}
+            {% set badge_cls = 'badge-medium' %}
+        {% else %}
+            {% set sev = 'low' %}
+            {% set badge_cls = 'badge-low' %}
+        {% endif %}
+        <tr class="main-row no-break">
+            <td style="white-space:nowrap;font-size:11px;">{{ source.get('@timestamp_display', source.get('@timestamp', 'N/A')) }}</td>
+            <td>
+                <strong>{{ source.agent.name | default('N/A') }}</strong><br>
+                <span style="font-size:10px;color:#6b7280;">{{ source.agent.ip | default('') }}</span>
+            </td>
+            <td style="font-family:monospace;font-size:11px;">{{ source.rule.id | default('N/A') }}</td>
+            <td style="text-align:center;font-weight:800;">{{ level }}</td>
+            <td><span class="badge {{ badge_cls }}">{{ sev }}</span></td>
+            <td>
+                <div style="font-weight:600;margin-bottom:6px;">{{ source.rule.description | default('N/A') }}</div>
+                {% if source.rule.groups %}
+                <div style="margin-bottom:6px;">
+                    {% for g in source.rule.groups %}
+                    <span style="background:#e0e7ff;color:#3730a3;border-radius:10px;padding:1px 7px;font-size:10px;margin-right:3px;">{{ g }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <div class="log-label">Full Log</div>
+                <div class="full-log-box">{% set log = alert.full_log_text | default('No log data available.') %}{{ log[:500] }}{% if log | length > 500 %}
+... [truncated — {{ log | length }} chars total]{% endif %}</div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <p style="font-size:10px;color:#6b7280;margin-top:4px;margin-bottom:28px;">
+        Showing {{ alerts | length }} alert(s) out of {{ total_alerts }} total.
+        {% if pdf_capped %}
+        PDF output is capped at 200 alerts for performance. Use HTML format to export all {{ total_alerts }} alerts.
+        {% elif total_alerts > alerts | length %}
+        Only the most recent 1,000 alerts are included in this report.
+        {% endif %}
+    </p>
+    {% else %}
+    <div class="info-box">
+        <strong>No alerts found</strong> for the selected severity levels and time period.
+    </div>
+    {% endif %}
+
+</div><!-- /container -->
+
+<!-- ══ FOOTER ══ -->
+<div class="report-footer">
+    <div>
+        <div class="footer-brand">ByteIT SentinalX &nbsp;·&nbsp; Beta-v18</div>
+        <div>Generated: {{ generated_at }} &nbsp;|&nbsp; Downloaded by: <strong style="color:#fff;">{{ downloaded_by }}</strong></div>
+        <div>{{ timezone_note }}</div>
+    </div>
+    <div style="text-align:right;">
+        <div class="confidential">CONFIDENTIAL</div>
+        <div style="margin-top:4px;">IT Department &nbsp;·&nbsp; itsupport@rebiz.com</div>
+        <div>Created by Ali Zaib &nbsp;·&nbsp; IT Department</div>
+    </div>
+</div>
+
+</body>
+</html>
