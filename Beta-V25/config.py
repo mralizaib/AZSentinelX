@@ -29,7 +29,7 @@ class Config:
                                               'wazuh-alerts-*')
 
     # AI Model configuration
-    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY','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')
+    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY','')
     DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
     OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', 'http://localhost:11434')
     
