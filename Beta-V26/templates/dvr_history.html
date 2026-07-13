@@ -1,0 +1,283 @@
+{% extends "layout.html" %}
+{% block title %}Configuration History — ByteIT SentinalX{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
+    <div>
+        <h2 class="mb-1"><i class="fas fa-clock-rotate-left text-primary me-2"></i>Configuration History</h2>
+        <p class="text-muted mb-0">Audit log of all DVR/NVR single-device and bulk configuration sessions.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('dvr_config.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-sliders me-1"></i>Single Device
+        </a>
+        <a href="{{ url_for('dvr_bulk.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-layer-group me-1"></i>Bulk Deploy
+        </a>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <input type="text" class="form-control form-control-sm" id="filter-search"
+                       placeholder="Search device name, IP, technician…" oninput="applyFilters()">
+            </div>
+            <div class="col-auto">
+                <select class="form-select form-select-sm" id="filter-overall" onchange="applyFilters()">
+                    <option value="">All Results</option>
+                    <option value="PASS">PASS</option>
+                    <option value="WARNING">WARNING</option>
+                    <option value="FAIL">FAIL</option>
+                    <option value="Incomplete">Incomplete</option>
+                </select>
+            </div>
+            <div class="col-auto ms-auto text-muted small" id="session-count"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div id="history-loading" class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="text-muted mt-2">Loading sessions…</p>
+        </div>
+        <div id="history-table-wrap" class="d-none">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width:180px;">Device Name</th>
+                        <th style="width:130px;">IP Address</th>
+                        <th style="width:130px;">Checks</th>
+                        <th style="width:110px;">Overall</th>
+                        <th>Technician</th>
+                        <th>Date / Time</th>
+                        <th class="text-center" style="width:100px;">Audit Log</th>
+                    </tr>
+                </thead>
+                <tbody id="history-tbody"></tbody>
+            </table>
+        </div>
+        <div id="history-empty" class="text-center py-5 d-none">
+            <i class="fas fa-folder-open fa-2x text-muted mb-3"></i>
+            <p class="text-muted">No configuration sessions found.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Session Detail Modal -->
+<div class="modal fade" id="sessionDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-clipboard-list me-2 text-primary"></i>Session Audit Log</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="session-detail-body">
+                <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let allSessions = [];
+
+async function loadSessions() {
+    try {
+        const res  = await fetch('/api/dvr/sessions');
+        const data = await res.json();
+        allSessions = data.sessions || [];
+        document.getElementById('history-loading').classList.add('d-none');
+        renderTable(allSessions);
+    } catch(e) {
+        document.getElementById('history-loading').innerHTML =
+            `<p class="text-danger py-3">Error loading sessions: ${e.message}</p>`;
+    }
+}
+
+function renderTable(sessions) {
+    const tbody = document.getElementById('history-tbody');
+    const wrap  = document.getElementById('history-table-wrap');
+    const empty = document.getElementById('history-empty');
+    const count = document.getElementById('session-count');
+
+    count.textContent = `${sessions.length} session${sessions.length !== 1 ? 's' : ''}`;
+
+    if (!sessions.length) {
+        wrap.classList.add('d-none');
+        empty.classList.remove('d-none');
+        return;
+    }
+    empty.classList.add('d-none');
+    wrap.classList.remove('d-none');
+
+    const ovColor = o => o==='PASS'?'success':o==='WARNING'?'warning':o==='FAIL'?'danger':'secondary';
+    const ovIcon  = o => o==='PASS'?'circle-check':o==='WARNING'?'triangle-exclamation':o==='FAIL'?'circle-xmark':'circle-half-stroke';
+
+    tbody.innerHTML = sessions.map(s => {
+        const p = s.passed ?? '—', w = s.warned ?? '—', f = s.failed ?? '—';
+        const checksHtml = (typeof s.passed === 'number')
+            ? `<span class="text-success me-1" title="Passed"><i class="fas fa-circle-check"></i> ${p}</span>
+               <span class="text-warning me-1" title="Warnings"><i class="fas fa-triangle-exclamation"></i> ${w}</span>
+               <span class="text-danger" title="Failed"><i class="fas fa-circle-xmark"></i> ${f}</span>`
+            : '<span class="text-muted small">—</span>';
+        const dt = s.updated_at ? s.updated_at.slice(0,16).replace('T',' ') + ' UTC' : 'N/A';
+        return `<tr>
+          <td><strong>${s.device_name}</strong></td>
+          <td class="font-monospace small">${s.ip}</td>
+          <td>${checksHtml}</td>
+          <td><span class="badge bg-${ovColor(s.overall)}">
+            <i class="fas fa-${ovIcon(s.overall)} me-1"></i>${s.overall}
+          </span></td>
+          <td>${s.technician}</td>
+          <td class="text-muted small">${dt}</td>
+          <td class="text-center">
+            <button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="showDetail('${s.id}')">
+              <i class="fas fa-magnifying-glass me-1"></i>View
+            </button>
+          </td>
+        </tr>`;
+    }).join('');
+}
+
+function applyFilters() {
+    const q  = document.getElementById('filter-search').value.toLowerCase();
+    const ov = document.getElementById('filter-overall').value;
+    const filtered = allSessions.filter(s => {
+        const matchQ  = !q || [s.device_name, s.ip, s.technician].some(v => (v||'').toLowerCase().includes(q));
+        const matchOv = !ov || s.overall === ov;
+        return matchQ && matchOv;
+    });
+    renderTable(filtered);
+}
+
+async function showDetail(sessId) {
+    const modal = new bootstrap.Modal(document.getElementById('sessionDetailModal'));
+    document.getElementById('session-detail-body').innerHTML =
+        '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+    modal.show();
+
+    try {
+        const r = await fetch(`/api/dvr/session/${sessId}`);
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || 'Not found');
+        const sess  = d.session;
+        const conn  = sess.connection || {};
+        const steps = sess.steps || {};
+        const disc  = steps.discovery  || {};
+        const valSt = steps.validation || {};
+        const checks= valSt.checks || [];
+        const users = (steps.users || {}).accounts || [];
+        const streams = (steps.streams || {}).channels || [];
+        const overall = valSt.overall || 'Incomplete';
+        const ovC = overall==='PASS'?'success':overall==='WARNING'?'warning':overall==='FAIL'?'danger':'secondary';
+
+        const valRows = checks.map(c => {
+            const ic = c.status==='pass'?'circle-check':c.status==='warn'?'triangle-exclamation':'circle-xmark';
+            const cl = c.status==='pass'?'success':c.status==='warn'?'warning':'danger';
+            const act = c.action ? `<br><small class="text-muted"><i class="fas fa-arrow-right me-1"></i>${c.action}</small>` : '';
+            return `<tr>
+              <td class="text-center"><i class="fas fa-${ic} text-${cl}"></i></td>
+              <td class="fw-semibold small" style="width:210px;">${c.check}</td>
+              <td class="small">${c.detail}${act}</td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="3" class="text-muted text-center">No validation data</td></tr>';
+
+        const streamRows = streams.map(ch => {
+            const sub = ch.sub_stream || ch.sub || '';
+            const subBadge = badge(sub);
+            const note = ch.sub_note ? `<br><small class="text-warning">${ch.sub_note}</small>` : '';
+            const res  = ch.sub_resolution && ch.sub_resolution !== 'N/A'
+                ? ` <small class="text-muted">(${ch.sub_resolution})</small>` : '';
+            return `<tr>
+              <td class="small text-muted">Ch ${ch.channel}</td>
+              <td>${badge(ch.main_stream || ch.main)}</td>
+              <td>${subBadge}${res}${note}</td>
+            </tr>`;
+        }).join('');
+
+        const userRows = users.map(a => {
+            const cl = a.status==='created'?'success':a.status.includes('failed')?'warning':'danger';
+            return `<tr>
+              <td><strong>${a.username}</strong></td>
+              <td class="small">${a.role}</td>
+              <td><code class="small">${a.password||'—'}</code></td>
+              <td><span class="badge bg-${cl}">${a.status}</span></td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('session-detail-body').innerHTML = `
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <h5 class="mb-1">${conn.device_name||'—'}</h5>
+              <div class="text-muted small">${conn.ip||'—'}:${conn.port||'—'}
+                &nbsp;·&nbsp;${(sess.started_at||'').slice(0,16).replace('T',' ')} UTC
+                &nbsp;·&nbsp;Tech: ${sess.technician||'—'}</div>
+            </div>
+            <span class="badge bg-${ovC} fs-6 px-3 py-2">
+              <i class="fas fa-${ovC==='success'?'circle-check':ovC==='warning'?'triangle-exclamation':'circle-xmark'} me-1"></i>${overall}
+            </span>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-sm-3"><div class="text-muted small">Model</div><div class="fw-semibold small">${disc.model||'—'}</div></div>
+            <div class="col-sm-3"><div class="text-muted small">Serial</div><div class="fw-semibold small">${disc.serial_number||'—'}</div></div>
+            <div class="col-sm-3"><div class="text-muted small">Firmware</div><div class="fw-semibold small">${disc.firmware_version||'—'}</div></div>
+            <div class="col-sm-3"><div class="text-muted small">Session ID</div><div class="fw-semibold" style="font-size:.7em;word-break:break-all">${sessId}</div></div>
+          </div>
+
+          <h6 class="text-uppercase text-muted mb-2" style="font-size:.72rem;letter-spacing:.05em;">
+            <i class="fas fa-shield-check me-1"></i>Validation Results
+          </h6>
+          <table class="table table-sm table-borderless mb-3"><tbody>${valRows}</tbody></table>
+
+          ${streamRows ? `
+          <h6 class="text-uppercase text-muted mb-2" style="font-size:.72rem;letter-spacing:.05em;">
+            <i class="fas fa-camera me-1"></i>Stream Configuration
+          </h6>
+          <table class="table table-sm table-borderless mb-3">
+            <thead class="table-dark"><tr><th>Ch</th><th>Main</th><th>Sub</th></tr></thead>
+            <tbody>${streamRows}</tbody>
+          </table>` : ''}
+
+          ${userRows ? `
+          <h6 class="text-uppercase text-muted mb-2" style="font-size:.72rem;letter-spacing:.05em;">
+            <i class="fas fa-users me-1"></i>User Accounts
+          </h6>
+          <table class="table table-sm table-borderless mb-3">
+            <thead class="table-dark"><tr><th>Username</th><th>Role</th><th>Password</th><th>Status</th></tr></thead>
+            <tbody>${userRows}</tbody>
+          </table>` : ''}`;
+    } catch(e) {
+        document.getElementById('session-detail-body').innerHTML =
+            `<div class="alert alert-danger">Failed to load session: ${e.message}</div>`;
+    }
+}
+
+function badge(status) {
+    const map = {
+        configured:          ['success', 'circle-check'],
+        configured_fallback: ['warning', 'circle-exclamation'],
+        created:             ['success', 'circle-check'],
+        pass:                ['success', 'circle-check'],
+        ok:                  ['success', 'circle-check'],
+        skipped:             ['secondary','minus-circle'],
+        error:               ['danger',  'circle-xmark'],
+        fail:                ['danger',  'circle-xmark'],
+        warn:                ['warning', 'triangle-exclamation'],
+    };
+    const [cls, icon] = map[(status||'').toLowerCase()] || ['secondary','circle'];
+    const label = status === 'configured_fallback' ? 'fallback' : status;
+    return `<span class="badge bg-${cls}"><i class="fas fa-${icon} me-1"></i>${label}</span>`;
+}
+
+loadSessions();
+</script>
+{% endblock %}
