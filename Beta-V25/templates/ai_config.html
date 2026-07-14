@@ -1,0 +1,122 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8">
+            <h2>AI Platform Configuration</h2>
+            <p class="text-muted">Set the default AI platform for generating insights and analysis. The system will automatically fallback to alternative providers if the primary one fails.</p>
+
+            <div class="card mt-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Current Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Default AI Provider:</strong> <span class="badge badge-info">{{ current_default.upper() }}</span></p>
+                </div>
+            </div>
+
+            {% if available_providers %}
+            <form method="POST" class="mt-4">
+                <div class="form-group">
+                    <label for="default_ai_provider"><strong>Select Default AI Provider</strong></label>
+                    <select class="form-control" id="default_ai_provider" name="default_ai_provider" required>
+                        {% for provider in available_providers %}
+                        <option value="{{ provider }}" {% if provider == current_default %}selected{% endif %}>
+                            {{ providers_status[provider].name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text text-muted mt-2">
+                        Selected provider will be used as the primary AI source for all AI insights and analysis requests.
+                    </small>
+                </div>
+                <button type="submit" class="btn btn-primary">Update Default Provider</button>
+            </form>
+            {% else %}
+            <div class="alert alert-warning mt-4">
+                <strong>No AI providers configured.</strong> Please configure at least one AI provider to use AI features.
+            </div>
+            {% endif %}
+
+            <div class="card mt-5">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Available AI Providers</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for provider, status in providers_status.items() %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card {% if status.available %}border-success{% else %}border-danger{% endif %}">
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ status.name }}</h6>
+                                    <p class="card-text small">{{ status.description }}</p>
+                                    {% if status.available %}
+                                    <span class="badge badge-success">Configured ✓</span>
+                                    {% else %}
+                                    <span class="badge badge-danger">Not Configured</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Intelligent Fallback System</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>How it works:</strong></p>
+                    <ol>
+                        <li>The system first attempts to use your selected default AI provider</li>
+                        <li>If the default provider is unavailable or the request fails, it automatically tries alternative providers</li>
+                        <li>Fallback order: OpenAI → Gemini → DeepSeek → Ollama</li>
+                        <li>The response will indicate which provider was used, including if a fallback was triggered</li>
+                    </ol>
+                    <p class="mt-3"><strong>Benefits:</strong></p>
+                    <ul>
+                        <li>✓ Continuous AI functionality even if one provider is unavailable</li>
+                        <li>✓ Cost optimization by using preferred provider first</li>
+                        <li>✓ No configuration needed for fallback - it's automatic</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card bg-light sticky-top" style="top: 20px;">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Info</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Supported Providers:</h6>
+                    <ul class="small">
+                        <li><strong>OpenAI:</strong> GPT-4o via API key</li>
+                        <li><strong>Gemini:</strong> Free via Replit AI Integrations</li>
+                        <li><strong>DeepSeek:</strong> Via API key</li>
+                        <li><strong>Ollama:</strong> Local LLM deployment</li>
+                    </ul>
+
+                    <hr>
+
+                    <h6>Current Status:</h6>
+                    <ul class="small">
+                        {% for provider in available_providers %}
+                        <li>{{ providers_status[provider].name }} ✓</li>
+                        {% endfor %}
+                    </ul>
+
+                    {% if not available_providers %}
+                    <div class="alert alert-warning">
+                        Configure an AI provider in environment variables to enable AI features.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
