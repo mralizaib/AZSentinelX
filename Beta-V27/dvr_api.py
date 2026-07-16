@@ -444,7 +444,7 @@ class DVRClient:
             resp = getattr(e, "response", None)
             if resp is not None:
                 try:
-                    body_snippet = f" — response body: {resp.text[:300]}"
+                    body_snippet = f" — response body: {resp.text[:1000]}"
                 except Exception:
                     pass
             logger.error(f"PUT {url} failed: {e}{body_snippet}")
@@ -467,7 +467,7 @@ class DVRClient:
             resp = getattr(e, "response", None)
             if resp is not None:
                 try:
-                    body_snippet = f" — response body: {resp.text[:300]}"
+                    body_snippet = f" — response body: {resp.text[:1000]}"
                 except Exception:
                     pass
             logger.error(f"PUT(text) {url} failed: {e}{body_snippet}")
@@ -475,6 +475,7 @@ class DVRClient:
 
     def _post(self, path, xml_body=""):
         url = f"{self.base_url}{path}"
+        logger.debug(f"POST {url} — body:\n{xml_body}")
         try:
             r = self._session.post(url, auth=self.auth, verify=self.verify,
                                     timeout=self.timeout, data=xml_body,
@@ -486,7 +487,7 @@ class DVRClient:
             resp = getattr(e, "response", None)
             if resp is not None:
                 try:
-                    body_snippet = f" — response body: {resp.text[:300]}"
+                    body_snippet = f" — response body: {resp.text[:1000]}"
                 except Exception:
                     pass
             logger.error(f"POST {url} failed: {e}{body_snippet}")
@@ -1473,12 +1474,97 @@ class DVRClient:
     # ──────────────────────────────────────────────
     # Step 8 & 9: User Creation + Permissions
     # ──────────────────────────────────────────────
+    # Fallback namespace used when the device's own namespace cannot be
+    # detected from a GET response.  Most OEM / Platinum / LTS firmware
+    # identifies itself with std-cgi rather than the Hikvision-branded URI,
+    # and rejects any XML whose xmlns doesn't match (statusCode 6 /
+    # badXmlContent).  Using this as the default avoids the most common case.
+    _NS_FALLBACK = "http://www.std-cgi.com/ver20/XMLSchema"
+
+    def _build_create_user_xml_from_template(self, username, password, user_level):
+        """GET an existing user from the device and clone its raw XML structure.
+
+        The device's GET /Security/users response contains <User> children that
+        it already considers valid XML.  Extracting one of those blocks and
+        patching only the fields we want to change guarantees the POST body
+        mirrors the exact XML structure the firmware expects — no namespace
+        guessing needed.
+
+        The inner <User> nodes inside a <UserList> response do NOT carry their
+        own xmlns= attribute (they inherit it from the parent element), so the
+        cloned block is automatically namespace-free, which matches the ISAPI
+        spec POST example exactly.
+        """
+        import re as _re
+        try:
+            r = self._get("/Security/users")
+            raw = r.text
+            logger.debug(f"GET /Security/users raw response:\n{raw[:2000]}")
+
+            # Pull the first complete <User>…</User> block out of the raw text.
+            # The regex handles optional namespace prefixes (e.g. <hik:User>).
+            match = _re.search(
+                r'<(?:[^:>\s/]+:)?User(?:\s[^>]*)?>.*?</(?:[^:>\s/]+:)?User>',
+                raw, _re.DOTALL
+            )
+            if not match:
+                logger.debug("No <User> block in GET /Security/users — falling back to built-in template")
+                return None
+
+            user_block = match.group(0)
+            logger.debug(f"Cloned <User> block before patching:\n{user_block}")
+
+            # Overwrite only the fields that must differ for the new account.
+            user_block = _patch_xml_fields(user_block, {
+                'id':        '0',          # 0 = device assigns a new ID on POST
+                'userName':  username,
+                'password':  password,
+                'userLevel': user_level,
+                'inherent':  'false',      # not a built-in (non-deletable) account
+            })
+
+            xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + user_block
+            logger.debug(f"Cloned <User> block after patching:\n{xml}")
+            return xml
+
+        except Exception as e:
+            logger.debug(f"_build_create_user_xml_from_template: {e}")
+            return None
+
+    def _detect_device_ns(self):
+        """Return the XML namespace the device uses for Security resources.
+
+        The value is extracted from the root element of a GET /Security/users
+        response on first call and then cached for the lifetime of this client
+        instance, so subsequent calls cost nothing.  Falls back to
+        _NS_FALLBACK if the namespace cannot be determined (e.g. empty list
+        response, non-namespaced XML, or network error).
+        """
+        if hasattr(self, '_cached_device_ns'):
+            return self._cached_device_ns
+        try:
+            r = self._get("/Security/users")
+            root = _parse_xml(r.text)
+            if root is not None and '}' in root.tag:
+                ns = root.tag.split('}', 1)[0][1:]
+            else:
+                ns = self._NS_FALLBACK
+        except Exception:
+            ns = self._NS_FALLBACK
+        self._cached_device_ns = ns
+        logger.debug(f"Detected device XML namespace: {ns}")
+        return ns
+
     def _get_existing_users(self):
         try:
             r = self._get("/Security/users")
             root = _parse_xml(r.text)
             if root is None:
                 return {}
+            # Cache the device namespace while we have the response in hand,
+            # so create_user / set_user_permissions don't need an extra GET.
+            if not hasattr(self, '_cached_device_ns') and '}' in root.tag:
+                self._cached_device_ns = root.tag.split('}', 1)[0][1:]
             users = {}
             for u in _find_all(root, "User"):
                 uid = _text(u, "id", default="")
@@ -1506,7 +1592,8 @@ class DVRClient:
         """Create a user on the DVR. Returns user id or raises."""
         user_level = self._USER_LEVEL_MAP.get(role.lower(), "Viewer")
 
-        # Check if already exists
+        # Check if already exists — also populates _cached_device_ns as a
+        # side-effect so the POST below doesn't need a second GET.
         existing = self._get_existing_users()
         if username in existing:
             logger.info(f"User {username} already exists (id={existing[username]}), updating password")
@@ -1514,47 +1601,155 @@ class DVRClient:
             self._update_user_password(uid, username, password, user_level)
             return uid
 
-        xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<User version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+        # Strategy 1 (preferred): GET an existing user from the device and clone
+        # its raw XML structure, patching only the fields that differ.  This
+        # guarantees our POST body is structurally identical to XML the device
+        # already produced — no namespace or field-ordering guessing.
+        #
+        # Strategy 2 (fallback): spec-faithful built-in template with NO xmlns=
+        # attribute on <User>, matching the ISAPI guide POST example exactly
+        # (§15.7.56, Table 15-312).  The previous approach added xmlns= which
+        # this OEM firmware rejects with badXmlContent / MErrCode 1610.
+        xml = self._build_create_user_xml_from_template(username, password, user_level)
+
+        if xml is None:
+            xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<User>
+  <id>0</id>
   <userName>{username}</userName>
   <password>{password}</password>
+  <bondIpList>
+    <bondIp>
+      <id>1</id>
+      <ipAddress>0.0.0.0</ipAddress>
+      <ipv6Address>::</ipv6Address>
+    </bondIp>
+  </bondIpList>
+  <macAddress></macAddress>
   <userLevel>{user_level}</userLevel>
+  <attribute>
+    <inherent>false</inherent>
+  </attribute>
 </User>"""
+
+        logger.debug(f"POST /Security/users body:\n{xml}")
+        post_exc = None
         try:
             r = self._post("/Security/users", xml)
             root = _parse_xml(r.text)
             uid = _text(root, "id", default="") if root is not None else ""
             if not uid:
-                # Some firmware doesn't echo the id back on the ResponseStatus body
-                # (only statusCode/statusString). Re-fetch the user list to resolve
-                # the ID the device actually assigned to the new username.
                 refreshed = self._get_existing_users()
                 uid = refreshed.get(username, "")
-            if not uid:
-                raise Exception("Device did not return a user id and user was not found afterwards")
-            return uid
+            if uid:
+                return uid
         except Exception as e:
-            logger.error(f"Create user {username}: {e}")
-            raise
+            post_exc = e
+            logger.warning(f"POST /Security/users failed for {username} ({e}); "
+                           f"falling back to GET-then-PUT full UserList approach")
+
+        # ── Fallback: GET the full UserList, inject our new <User>, PUT back ──
+        # Some OEM firmwares (e.g. HNR/Uniview V4.x) do not implement
+        # POST /Security/users at all — only GET/PUT on the full list.
+        try:
+            uid = self._create_user_via_put_list(username, password, user_level)
+            if uid:
+                return uid
+        except Exception as e2:
+            logger.error(f"Create user {username}: PUT-list fallback also failed: {e2}")
+
+        # Both paths failed — surface the original POST error
+        err = post_exc or Exception("Both POST and PUT-list user creation failed")
+        logger.error(f"Create user {username}: {err}")
+        raise err
+
+    def _create_user_via_put_list(self, username, password, user_level):
+        """Fallback user-creation path for firmware that rejects POST /Security/users.
+
+        Strategy: GET the full XML_UserList, inject a new <User> block, then
+        PUT the modified list back.  The ISAPI spec Table 15-311 confirms that
+        PUT /ISAPI/Security/users accepts XML_UserList.  Many Uniview/OEM V4.x
+        firmwares only implement GET+PUT on the full list, not POST for a
+        single user.
+
+        Returns the new user's string ID, or raises on failure.
+        """
+        import re as _re
+
+        # 1. GET the current user list as raw XML text
+        r = self._get("/Security/users")
+        raw = r.text
+        logger.debug(f"PUT-list fallback — GET /Security/users raw:\n{raw[:2000]}")
+
+        # 2. Build a new <User> block to inject.
+        #    We can optionally clone the admin block structure; for safety we
+        #    use the explicit spec template here since we already have the raw
+        #    list XML to mirror the outer namespace context.
+        new_user_block = f"""  <User>
+    <id>0</id>
+    <userName>{username}</userName>
+    <password>{password}</password>
+    <bondIpList>
+      <bondIp>
+        <id>1</id>
+        <ipAddress>0.0.0.0</ipAddress>
+        <ipv6Address>::</ipv6Address>
+      </bondIp>
+    </bondIpList>
+    <macAddress></macAddress>
+    <userLevel>{user_level}</userLevel>
+    <attribute>
+      <inherent>false</inherent>
+    </attribute>
+  </User>"""
+
+        # 3. Inject before the closing UserList tag (handles namespace prefixes)
+        modified, n = _re.subn(
+            r'(</(?:[^:>\s/]+:)?UserList>)',
+            new_user_block + r'\n\1',
+            raw
+        )
+        if n == 0:
+            raise Exception("Could not locate </UserList> closing tag in GET /Security/users response")
+
+        logger.debug(f"PUT-list fallback — modified UserList body:\n{modified[:3000]}")
+
+        # 4. PUT the modified list back
+        self._put("/Security/users", modified)
+
+        # 5. Re-fetch to confirm the user was created and get its assigned ID
+        updated = self._get_existing_users()
+        uid = updated.get(username, "")
+        if not uid:
+            raise Exception(f"PUT /Security/users succeeded but {username} not found in refreshed list")
+        logger.info(f"Created user {username} via PUT-list fallback — id={uid}")
+        return uid
 
     def _update_user_password(self, uid, username, password, user_level):
+        """Update an existing user's password via PUT /Security/users/<ID>.
+
+        Sends the minimal <User> fields required for the PUT body.  No xmlns=
+        or version= attributes — this OEM firmware rejects extra attributes
+        with badXmlContent / MErrCode 1610.
+        """
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<User version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<User>
   <id>{uid}</id>
   <userName>{username}</userName>
   <password>{password}</password>
   <userLevel>{user_level}</userLevel>
 </User>"""
+        logger.debug(f"PUT /Security/users/{uid} body:\n{xml}")
         try:
             self._put(f"/Security/users/{uid}", xml)
         except Exception as e:
             logger.warning(f"Update user {uid}: {e}")
 
     # Single source of truth for each account's required permission set.
-    # "manager" is intentionally not listed here — it must always mirror
-    # "cms" exactly (see _spec_key_for), so there is no risk of the two
-    # definitions drifting apart.
-    DVR_PERMISSION_SPECS = {
+    # Accessed as self._PERMISSION_SPECS throughout this class.
+    # "manager" mirrors "cms" exactly — both are listed explicitly here so
+    # callers can look up any account name without special-casing.
+    _PERMISSION_SPECS = {
     "cms": {
         "user_type": "viewer",
         "remote": {
@@ -1574,6 +1769,30 @@ class DVRClient:
             "record": False,
             "logOrStateCheck": True,         # Log Search
             "backup": True,                  # Video Export
+            "ptzControl": False,
+        },
+    },
+
+    "manager": {
+        # Manager uses the same permissions as CMS (Viewer-level monitoring).
+        "user_type": "viewer",
+        "remote": {
+            "preview": True,
+            "playBack": True,
+            "record": False,
+            "logOrStateCheck": True,
+            "parameterConfig": False,
+            "restartOrShutdown": False,
+            "upgrade": False,
+            "voiceTalk": False,
+            "ptzControl": False,
+        },
+        "local": {
+            "preview": True,
+            "playBack": True,
+            "record": False,
+            "logOrStateCheck": True,
+            "backup": True,
             "ptzControl": False,
         },
     },
@@ -1604,10 +1823,11 @@ class DVRClient:
 
     @staticmethod
     def _spec_key_for(permission_set):
-        """The Manager account shall be assigned the same permissions and
-        access rights as the CMS account, so 'manager' always resolves to
-        the 'cms' spec rather than keeping a second, driftable copy."""
-        return "cms" if permission_set == "manager" else permission_set
+        """Resolve a permission_set name to a key in _PERMISSION_SPECS.
+        'manager' now has its own entry that mirrors 'cms', but this method
+        is kept for backward compatibility with any callers that still pass
+        'manager' expecting a cms-equivalent spec."""
+        return permission_set if permission_set in ("cms", "manager", "dlt") else permission_set
 
     def set_user_permissions(self, uid, username, permission_set):
         """
@@ -1631,8 +1851,9 @@ class DVRClient:
         remote_perms = _fields_xml(spec["remote"])
         local_perms  = _fields_xml(spec["local"])
 
+        ns = self._detect_device_ns()
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<UserPermission version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<UserPermission version="2.0" xmlns="{ns}">
   <id>{uid}</id>
   <userID>{uid}</userID>
   <userType>{user_type}</userType>
@@ -1705,38 +1926,59 @@ class DVRClient:
         ok = self.set_user_permissions(uid, username, permission_set)
         return {"ok": ok, "status": "updated" if ok else "update_failed"}
 
-    def configure_manager_account(self, username, password):
+    def configure_standard_account(self, username, password, permission_set):
         """
-        Create the Manager account if it doesn't exist, or update its
-        password if it does. Ensures its permissions match the CMS
-        permission set exactly, only writing permissions when they differ
-        from what's already applied. Finishes with a read-back verification
-        so callers know whether the account and its permissions are
-        confirmed correct on the device — not just "no exception was raised".
+        Unified account provisioning for CMS, DLT, and Manager accounts.
+
+        Workflow:
+          1. Fetch the current user list from the device.
+          2. If the account already exists:
+               - Verify its permissions against the required spec.
+               - Update permissions only if they differ.
+          3. If the account does not exist:
+               - Create it with the correct user_type from the spec.
+               - Apply the required permissions immediately.
+          4. Read back permissions to confirm the final state.
+
+        This ensures configuration always continues — no step fails just
+        because an account was (or wasn't) pre-existing on the device.
+
+        Args:
+            username:       Account username (e.g. 'cms', 'dlt', 'manager').
+            password:       Password to set (always applied, even if account exists).
+            permission_set: Key into _PERMISSION_SPECS ('cms', 'dlt', 'manager').
 
         Returns:
-          {'ok': bool, 'uid': str, 'username': str, 'already_existed': bool,
-           'permission_status': 'matched'|'updated'|'update_failed',
-           'verified': bool}
-          or {'ok': False, 'username': str, 'error': str} if account
-          creation/update itself failed.
+            {'ok': bool, 'uid': str, 'username': str, 'already_existed': bool,
+             'permission_status': 'matched'|'updated'|'update_failed',
+             'verified': bool}
+            or {'ok': False, 'username': str, 'error': str} on hard failure.
         """
+        spec = self._PERMISSION_SPECS.get(self._spec_key_for(permission_set))
+        if spec is None:
+            return {"ok": False, "username": username,
+                    "error": f"Unknown permission_set '{permission_set}'"}
+
+        role = spec["user_type"]  # 'viewer' or 'operator'
+
         try:
             existing = self._get_existing_users()
             already_existed = username in existing
-            uid = self.create_user(username, password, role="viewer")
+            # create_user handles both paths: creates the account if new,
+            # or updates the password if the account already exists.
+            uid = self.create_user(username, password, role=role)
         except Exception as e:
-            logger.error(f"Manager account configuration failed for {username}: {e}")
+            logger.error(f"Account provisioning failed for {username}: {e}")
             return {"ok": False, "username": username, "error": str(e)}
 
-        perm_result = self.verify_and_sync_permissions(uid, username, "manager")
+        # Verify permissions and update only if they don't match the spec.
+        perm_result = self.verify_and_sync_permissions(uid, username, permission_set)
 
+        # Read back for final confirmation (some firmware can't echo perms).
         final_perms = self.get_user_permissions(uid)
         if final_perms is not None:
-            verified = self._permissions_match(final_perms, "manager")
+            verified = self._permissions_match(final_perms, permission_set)
         else:
-            # Device doesn't support reading permissions back — the best
-            # available confirmation is that the write itself didn't error.
             verified = perm_result["ok"]
 
         return {
@@ -1747,6 +1989,13 @@ class DVRClient:
             "permission_status": perm_result["status"],
             "verified": verified,
         }
+
+    def configure_manager_account(self, username, password):
+        """
+        Retained for backward compatibility. Delegates to configure_standard_account
+        with permission_set='manager' (Viewer-level, same rights as CMS).
+        """
+        return self.configure_standard_account(username, password, "manager")
 
     def discover_permission_capabilities(self, user_type="viewer"):
         """Query device for supported permission fields via the capability endpoints.

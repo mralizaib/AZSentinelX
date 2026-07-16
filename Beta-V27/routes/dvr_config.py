@@ -2,15 +2,20 @@
 AI DVR/NVR Auto-Configuration — Blueprint
 Handles the 11-step guided workflow for configuring Hikvision / Platinum / LTS devices.
 """
+import hashlib
 import io
 import json
 import logging
+import re
 import smtplib
 import time
 from datetime import datetime
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
+import requests
+from requests.auth import HTTPDigestAuth
 
 from flask import (Blueprint, Response, jsonify, render_template,
                    request, send_file, session)
@@ -422,63 +427,88 @@ def configure_users():
     try:
         client = _make_client(sess['connection'])
 
-        # CMS user (Viewer-level monitoring account)
+        def _account_status(result, created_label='created'):
+            """Derive a human-readable status string from configure_standard_account result."""
+            if not result.get('ok'):
+                return 'error'
+            already = result.get('already_existed', False)
+            perm_st = result.get('permission_status', '')
+            if perm_st == 'update_failed':
+                return 'updated_permissions_failed' if already else 'created_permissions_failed'
+            return 'updated' if already else created_label
+
+        # CMS user (Viewer-level monitoring account).
+        # Uses configure_standard_account: checks if the account exists first;
+        # creates it if missing, updates permissions if they differ, and
+        # continues without error either way.
         if 'cms' in selected_users:
             try:
-                cms_id = client.create_user("cms", cms_password, role="viewer")
-                perm_ok = client.set_user_permissions(cms_id, "cms", "cms")
-                results.append({
+                cms = client.configure_standard_account("cms", cms_password, "cms")
+                status = _account_status(cms)
+                entry = {
                     'username': 'cms',
                     'password': cms_password,
                     'role': 'viewer',
-                    'status': 'created' if perm_ok else 'created_permissions_failed',
+                    'status': status,
+                    'already_existed': cms.get('already_existed', False),
+                    'permission_status': cms.get('permission_status'),
+                    'verified': cms.get('verified', False),
                     'permissions': 'Log Search, Live View, Playback, Video Export (Local); Log Search, Live View, Playback/Download (Remote)',
-                })
+                }
+                if status == 'error':
+                    entry['error'] = cms.get('error', 'Unknown error')
+                results.append(entry)
             except Exception as e:
                 results.append({
                     'username': 'cms', 'password': cms_password,
                     'status': 'error', 'error': str(e),
                 })
 
-        # DLT user (Operator-level remote-admin account)
+        # DLT user (Operator-level remote-admin account).
+        # Same smart check-create-update flow as CMS.
         if 'dlt' in selected_users:
             try:
-                dlt_id = client.create_user("dlt", dlt_password, role="operator")
-                perm_ok = client.set_user_permissions(dlt_id, "dlt", "dlt")
-                results.append({
+                dlt = client.configure_standard_account("dlt", dlt_password, "dlt")
+                status = _account_status(dlt)
+                entry = {
                     'username': 'dlt',
                     'password': dlt_password,
                     'role': 'operator',
-                    'status': 'created' if perm_ok else 'created_permissions_failed',
+                    'status': status,
+                    'already_existed': dlt.get('already_existed', False),
+                    'permission_status': dlt.get('permission_status'),
+                    'verified': dlt.get('verified', False),
                     'permissions': 'Parameter Settings, Log Search, Shutdown/Reboot, Live View, Playback/Download (Remote)',
-                })
+                }
+                if status == 'error':
+                    entry['error'] = dlt.get('error', 'Unknown error')
+                results.append(entry)
             except Exception as e:
                 results.append({
                     'username': 'dlt', 'password': dlt_password,
                     'status': 'error', 'error': str(e),
                 })
 
-        # Manager user (optional — same permissions as CMS). Creates the
-        # account if new, updates the password if it already exists, and
-        # only rewrites permissions if they don't already match the CMS set.
+        # Manager user (optional — Viewer-level, same permissions as CMS).
+        # Creates the account if new, updates password if it already exists,
+        # and only rewrites permissions when they differ from the required set.
         if 'manager' in selected_users:
             try:
-                mgr = client.configure_manager_account(manager_username, manager_password)
-                if mgr.get('ok'):
-                    status = 'updated' if mgr.get('already_existed') else 'created'
-                    if mgr.get('permission_status') == 'update_failed':
-                        status = 'created_permissions_failed' if not mgr.get('already_existed') else 'updated_permissions_failed'
-                else:
-                    status = 'error'
-                results.append({
+                mgr = client.configure_standard_account(manager_username, manager_password, "manager")
+                status = _account_status(mgr)
+                entry = {
                     'username': manager_username,
                     'password': manager_password,
                     'role': 'viewer',
                     'status': status,
+                    'already_existed': mgr.get('already_existed', False),
                     'permission_status': mgr.get('permission_status'),
                     'verified': mgr.get('verified', False),
                     'permissions': 'Log Search, Live View, Playback, Video Export (Local); Log Search, Live View, Playback/Download (Remote)',
-                })
+                }
+                if status == 'error':
+                    entry['error'] = mgr.get('error', 'Unknown error')
+                results.append(entry)
             except Exception as e:
                 results.append({
                     'username': manager_username, 'password': manager_password,
@@ -1083,3 +1113,327 @@ def camera_names_report(session_id):
         'failed': total - succeeded,
         'results': report['results'],
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DVR Diagnostic Tool  — /dvr/diagnostic
+# Lets you test user-creation against a device directly from the browser.
+# Tries every known approach and shows you the raw device XML responses.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@dvr_config_bp.route('/dvr/diagnostic', methods=['GET', 'POST'])
+@login_required
+def dvr_diagnostic():
+    """Browser-based diagnostic: test user creation against any DVR/NVR."""
+    if request.method == 'GET':
+        return render_template('dvr_diagnostic.html')
+
+    # ── Collect form inputs ──────────────────────────────────────────────────
+    ip       = (request.form.get('ip') or '').strip()
+    port     = int(request.form.get('port') or 80)
+    username = (request.form.get('username') or '').strip()
+    password = (request.form.get('password') or '').strip()
+
+    if not ip or not username or not password:
+        return render_template('dvr_diagnostic.html',
+                               error='IP, username and password are required.')
+
+    base     = f"http://{ip}:{port}/ISAPI"
+    auth     = HTTPDigestAuth(username, password)
+    sess_req = requests.Session()
+    headers  = {"Content-Type": "application/xml"}
+    timeout  = 15
+
+    TEST_USER       = "_dvr_diag_"
+    TEST_PASS_PLAIN = "Test@12345"
+    TEST_PASS_MD5   = hashlib.md5(TEST_PASS_PLAIN.encode()).hexdigest()
+
+    steps = []   # list of dicts: {label, sent, status, response, success}
+
+    def _do_get(path):
+        url = base + path
+        try:
+            r = sess_req.get(url, auth=auth, verify=False, timeout=timeout)
+            return r.status_code, r.text
+        except Exception as exc:
+            return None, str(exc)
+
+    def _do_post(path, body):
+        url = base + path
+        try:
+            r = sess_req.post(url, auth=auth, verify=False, timeout=timeout,
+                              data=body, headers=headers)
+            return r.status_code, r.text
+        except Exception as exc:
+            return None, str(exc)
+
+    def _do_put(path, body):
+        url = base + path
+        try:
+            r = sess_req.put(url, auth=auth, verify=False, timeout=timeout,
+                             data=body, headers=headers)
+            return r.status_code, r.text
+        except Exception as exc:
+            return None, str(exc)
+
+    def _user_exists(raw_xml, uname):
+        return f"<userName>{uname}</userName>" in raw_xml or \
+               f"<userName xmlns" in raw_xml and uname in raw_xml
+
+    def _find_user_id(raw_xml, uname):
+        """Return the id text node that appears just before userName=uname."""
+        pattern = r'<id>(\d+)</id>\s*<userName>' + re.escape(uname) + r'</userName>'
+        m = re.search(pattern, raw_xml)
+        return m.group(1) if m else None
+
+    def _cleanup(uid):
+        if uid:
+            _do_delete(f"/Security/users/{uid}")
+
+    def _do_delete(path):
+        url = base + path
+        try:
+            sess_req.delete(url, auth=auth, verify=False, timeout=timeout)
+        except Exception:
+            pass
+
+    # ── Step 1: GET /Security/users ──────────────────────────────────────────
+    st1, resp1 = _do_get("/Security/users")
+    steps.append({
+        'label': 'GET /ISAPI/Security/users  (raw device XML)',
+        'sent': None,
+        'status': st1,
+        'response': resp1,
+        'success': st1 == 200,
+    })
+    raw_userlist = resp1 if st1 == 200 else ''
+
+    # Detect namespace
+    ns_match = re.search(r'xmlns="([^"]+)"', raw_userlist)
+    detected_ns = ns_match.group(1) if ns_match else ''
+
+    # Shared fields used in every user block
+    def _bond():
+        return """  <bondIpList>
+    <bondIp>
+      <id>1</id>
+      <ipAddress>0.0.0.0</ipAddress>
+      <ipv6Address>::</ipv6Address>
+    </bondIp>
+  </bondIpList>"""
+
+    created_uid = None
+    success_method = None
+
+    # ── Step 2: POST — plain password, no xmlns ──────────────────────────────
+    if not success_method:
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<User>\n'
+            '  <id>0</id>\n'
+            f'  <userName>{TEST_USER}</userName>\n'
+            f'  <password>{TEST_PASS_PLAIN}</password>\n'
+            + _bond() + '\n'
+            '  <macAddress></macAddress>\n'
+            '  <userLevel>Viewer</userLevel>\n'
+            '  <attribute><inherent>false</inherent></attribute>\n'
+            '</User>'
+        )
+        st, resp = _do_post("/Security/users", body)
+        ok = st == 200 and 'statusCode' not in resp
+        steps.append({
+            'label': 'POST /ISAPI/Security/users — plain password, no xmlns',
+            'sent': body, 'status': st, 'response': resp, 'success': ok,
+        })
+        if ok:
+            _, fresh = _do_get("/Security/users")
+            created_uid = _find_user_id(fresh, TEST_USER)
+            success_method = 'POST plain password'
+
+    # ── Step 3: POST — MD5 password, no xmlns ───────────────────────────────
+    if not success_method:
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<User>\n'
+            '  <id>0</id>\n'
+            f'  <userName>{TEST_USER}</userName>\n'
+            f'  <password>{TEST_PASS_MD5}</password>\n'
+            + _bond() + '\n'
+            '  <macAddress></macAddress>\n'
+            '  <userLevel>Viewer</userLevel>\n'
+            '  <attribute><inherent>false</inherent></attribute>\n'
+            '</User>'
+        )
+        st, resp = _do_post("/Security/users", body)
+        ok = st == 200 and 'statusCode' not in resp
+        steps.append({
+            'label': f'POST /ISAPI/Security/users — MD5 password ({TEST_PASS_MD5})',
+            'sent': body, 'status': st, 'response': resp, 'success': ok,
+        })
+        if ok:
+            _, fresh = _do_get("/Security/users")
+            created_uid = _find_user_id(fresh, TEST_USER)
+            success_method = 'POST MD5 password'
+
+    # ── Step 4: POST — plain password, with xmlns ────────────────────────────
+    if not success_method and detected_ns:
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            f'<User xmlns="{detected_ns}">\n'
+            '  <id>0</id>\n'
+            f'  <userName>{TEST_USER}</userName>\n'
+            f'  <password>{TEST_PASS_PLAIN}</password>\n'
+            + _bond() + '\n'
+            '  <macAddress></macAddress>\n'
+            '  <userLevel>Viewer</userLevel>\n'
+            '  <attribute><inherent>false</inherent></attribute>\n'
+            '</User>'
+        )
+        st, resp = _do_post("/Security/users", body)
+        ok = st == 200 and 'statusCode' not in resp
+        steps.append({
+            'label': f'POST — plain password, xmlns="{detected_ns}"',
+            'sent': body, 'status': st, 'response': resp, 'success': ok,
+        })
+        if ok:
+            _, fresh = _do_get("/Security/users")
+            created_uid = _find_user_id(fresh, TEST_USER)
+            success_method = f'POST plain+xmlns'
+
+    # ── Step 5: POST — MD5 password, with xmlns ──────────────────────────────
+    if not success_method and detected_ns:
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            f'<User xmlns="{detected_ns}">\n'
+            '  <id>0</id>\n'
+            f'  <userName>{TEST_USER}</userName>\n'
+            f'  <password>{TEST_PASS_MD5}</password>\n'
+            + _bond() + '\n'
+            '  <macAddress></macAddress>\n'
+            '  <userLevel>Viewer</userLevel>\n'
+            '  <attribute><inherent>false</inherent></attribute>\n'
+            '</User>'
+        )
+        st, resp = _do_post("/Security/users", body)
+        ok = st == 200 and 'statusCode' not in resp
+        steps.append({
+            'label': f'POST — MD5 password, xmlns="{detected_ns}"',
+            'sent': body, 'status': st, 'response': resp, 'success': ok,
+        })
+        if ok:
+            _, fresh = _do_get("/Security/users")
+            created_uid = _find_user_id(fresh, TEST_USER)
+            success_method = 'POST MD5+xmlns'
+
+    # ── Step 6: Clone first <User> from GET, patch, POST ────────────────────
+    if not success_method and raw_userlist:
+        m = re.search(
+            r'(<(?:[^:>\s/]+:)?User(?:\s[^>]*)?>.*?</(?:[^:>\s/]+:)?User>)',
+            raw_userlist, re.DOTALL
+        )
+        if m:
+            cloned = m.group(1)
+            for tag, val in [('id', '0'), ('userName', TEST_USER),
+                              ('password', TEST_PASS_PLAIN),
+                              ('userLevel', 'Viewer'), ('inherent', 'false')]:
+                cloned = re.sub(
+                    rf'(<(?:[^:>\s/]+:)?{re.escape(tag)}(?:\s[^>]*)?>)'
+                    rf'.*?(</(?:[^:>\s/]+:)?{re.escape(tag)}>)',
+                    rf'\g<1>{val}\g<2>', cloned, flags=re.DOTALL
+                )
+            body = '<?xml version="1.0" encoding="UTF-8"?>\n' + cloned
+            st, resp = _do_post("/Security/users", body)
+            ok = st == 200 and 'statusCode' not in resp
+            steps.append({
+                'label': 'POST — cloned first <User> from device GET, patched fields',
+                'sent': body, 'status': st, 'response': resp, 'success': ok,
+            })
+            if ok:
+                _, fresh = _do_get("/Security/users")
+                created_uid = _find_user_id(fresh, TEST_USER)
+                success_method = 'POST cloned User block'
+
+    # ── Step 7: PUT full UserList + injected user (plain password) ───────────
+    if not success_method and raw_userlist:
+        new_block = (
+            '  <User>\n'
+            '    <id>0</id>\n'
+            f'    <userName>{TEST_USER}</userName>\n'
+            f'    <password>{TEST_PASS_PLAIN}</password>\n'
+            '    <bondIpList><bondIp><id>1</id>'
+            '<ipAddress>0.0.0.0</ipAddress>'
+            '<ipv6Address>::</ipv6Address></bondIp></bondIpList>\n'
+            '    <macAddress></macAddress>\n'
+            '    <userLevel>Viewer</userLevel>\n'
+            '    <attribute><inherent>false</inherent></attribute>\n'
+            '  </User>\n'
+        )
+        modified, n = re.subn(
+            r'(</(?:[^:>\s/]+:)?[Uu]ser[Ll]ist>)',
+            new_block + r'\1', raw_userlist
+        )
+        if n:
+            st, resp = _do_put("/Security/users", modified)
+            ok = st in (200, 204)
+            steps.append({
+                'label': 'PUT /ISAPI/Security/users — full UserList with new user injected (plain password)',
+                'sent': modified[:3000] + ('…(truncated)' if len(modified) > 3000 else ''),
+                'status': st, 'response': resp, 'success': ok,
+            })
+            if ok:
+                _, fresh = _do_get("/Security/users")
+                created_uid = _find_user_id(fresh, TEST_USER)
+                if created_uid:
+                    success_method = 'PUT UserList plain password'
+                else:
+                    steps[-1]['success'] = False
+                    steps[-1]['response'] += '\n\n[Note: PUT returned 200 but user not found in refreshed list]'
+
+    # ── Step 8: PUT full UserList + injected user (MD5 password) ─────────────
+    if not success_method and raw_userlist:
+        new_block_md5 = (
+            '  <User>\n'
+            '    <id>0</id>\n'
+            f'    <userName>{TEST_USER}</userName>\n'
+            f'    <password>{TEST_PASS_MD5}</password>\n'
+            '    <bondIpList><bondIp><id>1</id>'
+            '<ipAddress>0.0.0.0</ipAddress>'
+            '<ipv6Address>::</ipv6Address></bondIp></bondIpList>\n'
+            '    <macAddress></macAddress>\n'
+            '    <userLevel>Viewer</userLevel>\n'
+            '    <attribute><inherent>false</inherent></attribute>\n'
+            '  </User>\n'
+        )
+        modified_md5, n = re.subn(
+            r'(</(?:[^:>\s/]+:)?[Uu]ser[Ll]ist>)',
+            new_block_md5 + r'\1', raw_userlist
+        )
+        if n:
+            st, resp = _do_put("/Security/users", modified_md5)
+            ok = st in (200, 204)
+            steps.append({
+                'label': 'PUT /ISAPI/Security/users — full UserList with new user injected (MD5 password)',
+                'sent': modified_md5[:3000] + ('…(truncated)' if len(modified_md5) > 3000 else ''),
+                'status': st, 'response': resp, 'success': ok,
+            })
+            if ok:
+                _, fresh = _do_get("/Security/users")
+                created_uid = _find_user_id(fresh, TEST_USER)
+                if created_uid:
+                    success_method = 'PUT UserList MD5 password'
+                else:
+                    steps[-1]['success'] = False
+                    steps[-1]['response'] += '\n\n[Note: PUT returned 200 but user not found in refreshed list]'
+
+    # ── Cleanup test user ────────────────────────────────────────────────────
+    if created_uid:
+        _cleanup(created_uid)
+
+    return render_template(
+        'dvr_diagnostic.html',
+        ran=True,
+        ip=ip, port=port, username=username,
+        steps=steps,
+        success_method=success_method,
+        detected_ns=detected_ns,
+    )

@@ -71,7 +71,7 @@ def _make_email_body(report_config, generated_at, downloaded_by, period_start, p
         <tr>
           <td width="70" style="vertical-align:middle;">{logo_html}</td>
           <td style="padding-left:16px;vertical-align:middle;">
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.65);margin-bottom:4px;">ByteIT SentinalX · Beta-v25</div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.65);margin-bottom:4px;">ByteIT SentinalX · Beta-v27</div>
             <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:0.5px;">Security Alert Report</div>
             <div style="font-size:12px;color:rgba(255,255,255,0.75);margin-top:4px;">Report: <strong style="color:#fff;">{report_config.name}</strong></div>
           </td>

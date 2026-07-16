@@ -346,36 +346,56 @@ def _configure_one_device(app, job_id, device_idx, device, global_city, global_s
         manager_username = manager_username_raw or 'manager'
         manager_pw = manager_password_raw or f"{initials}man_12"
 
+        def _bulk_account_status(result):
+            if not result.get('ok'):
+                return 'error'
+            already = result.get('already_existed', False)
+            perm_st = result.get('permission_status', '')
+            if perm_st == 'update_failed':
+                return 'updated_permissions_failed' if already else 'created_permissions_failed'
+            return 'updated' if already else 'created'
+
+        # CMS and DLT: use configure_standard_account so the flow never
+        # errors out when an account already exists on the device — it
+        # checks, creates-or-updates, and syncs permissions automatically.
         user_accounts = [
-            ('cms',  cms_pw, 'viewer',   'cms'),
-            ('dlt',  dlt_pw, 'operator', 'dlt'),
+            ('cms', cms_pw, 'viewer',   'cms'),
+            ('dlt', dlt_pw, 'operator', 'dlt'),
         ]
 
         user_results = []
         for uname, upw, urole, uperm in user_accounts:
             try:
-                uid = client.create_user(uname, upw, role=urole)
-                client.set_user_permissions(uid, uname, uperm)
-                user_results.append({'username': uname, 'password': upw,
-                                     'role': urole, 'status': 'created'})
+                res = client.configure_standard_account(uname, upw, uperm)
+                status = _bulk_account_status(res)
+                entry = {
+                    'username': uname, 'password': upw, 'role': urole,
+                    'status': status,
+                    'already_existed': res.get('already_existed', False),
+                    'permission_status': res.get('permission_status'),
+                    'verified': res.get('verified', False),
+                }
+                if status == 'error':
+                    entry['error'] = res.get('error', 'Unknown error')
+                user_results.append(entry)
             except Exception as ue:
                 user_results.append({'username': uname, 'password': upw,
                                      'role': urole, 'status': 'error', 'error': str(ue)})
 
         if create_manager:
             try:
-                mgr = client.configure_manager_account(manager_username, manager_pw)
-                if mgr.get('ok'):
-                    status = 'updated' if mgr.get('already_existed') else 'created'
-                    if mgr.get('permission_status') == 'update_failed':
-                        status = 'updated_permissions_failed' if mgr.get('already_existed') else 'created_permissions_failed'
-                else:
-                    status = 'error'
-                user_results.append({
+                mgr = client.configure_standard_account(manager_username, manager_pw, "manager")
+                status = _bulk_account_status(mgr)
+                entry = {
                     'username': manager_username, 'password': manager_pw, 'role': 'viewer',
-                    'status': status, 'permission_status': mgr.get('permission_status'),
+                    'status': status,
+                    'already_existed': mgr.get('already_existed', False),
+                    'permission_status': mgr.get('permission_status'),
                     'verified': mgr.get('verified', False),
-                })
+                }
+                if status == 'error':
+                    entry['error'] = mgr.get('error', 'Unknown error')
+                user_results.append(entry)
             except Exception as ue:
                 user_results.append({'username': manager_username, 'password': manager_pw,
                                      'role': 'viewer', 'status': 'error', 'error': str(ue)})
@@ -394,7 +414,7 @@ def _configure_one_device(app, job_id, device_idx, device, global_city, global_s
         expected['channel_ids'] = channel_ids  # active channel IDs from stream step
         expected['users_created'] = [
             u['username'] for u in user_results
-            if u.get('status') in ('created', 'created_permissions_failed')
+            if u.get('status') in ('created', 'updated', 'created_permissions_failed', 'updated_permissions_failed')
         ]
         checks = client.validate_configuration(expected)
         passed = sum(1 for c in checks if c['status'] == 'pass')

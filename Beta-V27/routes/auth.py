@@ -38,14 +38,16 @@ def login():
             flash('Please check your login details and try again.', 'danger')
             return redirect(url_for('auth.login'))
 
-        login_user(user, remember=remember)
+        # Always pass remember=True so Flask-Login also sets a long-lived
+        # remember-me cookie. This means the session survives browser restarts
+        # and the Replit preview iframe reloads without logging the user out.
+        # The optional "Remember Me" checkbox is still honoured on top of this.
+        login_user(user, remember=True)
         # Always make the session "permanent" so it uses a sliding idle-timeout
         # (PERMANENT_SESSION_LIFETIME, refreshed on every request — see
         # app.py's before_request) instead of a bare browser-session cookie.
         # That way an active user is never logged out mid-session; the
-        # session only expires after real inactivity. "Remember me" is a
-        # separate, longer-lived cookie (via Flask-Login) that additionally
-        # survives the browser being closed entirely.
+        # session only expires after real inactivity.
         session.permanent = True
         logger.info("User '%s' logged in (remember=%s)", user.username, remember)
         flash(f'Welcome back, {user.username}!', 'success')
@@ -67,6 +69,16 @@ def register():
     # Registration is disabled - only admins can create new users
     flash('Registration is disabled. Please contact an administrator to create an account.', 'warning')
     return redirect(url_for('auth.login'))
+
+@auth_bp.route('/api/session/ping', methods=['POST'])
+@login_required
+def session_ping():
+    """Heartbeat endpoint called by the JS keepalive every few minutes.
+    Touching session.modified here (via before_request in app.py) resets
+    the sliding idle-timeout so an active user is never logged out."""
+    session.modified = True
+    return {'ok': True}, 200
+
 
 @auth_bp.route('/logout')
 @login_required

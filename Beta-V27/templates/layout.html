@@ -1060,5 +1060,29 @@
         });
     </script>
     {% block scripts %}{% endblock %}
+
+    {# ── Session keepalive ───────────────────────────────────────────────────
+       Ping the server every 4 minutes so an active user is never auto-logged
+       out. The server resets the 30-day sliding idle-timeout on each ping.
+       Only runs when the user is authenticated (Flask injects is_authenticated).
+    ── #}
+    {% if current_user.is_authenticated %}
+    <script>
+    (function() {
+        var PING_INTERVAL = 4 * 60 * 1000; // 4 minutes
+        function ping() {
+            fetch('/api/session/ping', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' }
+            }).catch(function() {
+                // Silently ignore network errors — the server will handle
+                // genuine session expiry at next real navigation.
+            });
+        }
+        setInterval(ping, PING_INTERVAL);
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>

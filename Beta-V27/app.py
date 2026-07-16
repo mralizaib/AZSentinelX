@@ -93,10 +93,14 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 # request (before_request below + Flask's SESSION_REFRESH_EACH_REQUEST).
 # An actively-used session therefore never expires; only real inactivity
 # for the full window logs the user out.
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_REFRESH_EACH_REQUEST"] = True
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# Never expire the remember-me cookie so active users are never forced out
+app.config["REMEMBER_COOKIE_DURATION"] = timedelta(days=30)
+app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+app.config["REMEMBER_COOKIE_REFRESH_EACH_REQUEST"] = True
 
 # Initialize the database
 db.init_app(app)
