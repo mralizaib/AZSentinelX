@@ -1,0 +1,680 @@
+{% extends "layout.html" %}
+
+{% block title %}Hybrid DVR Config — ByteIT SentinalX{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+
+  <!-- ── Header ── -->
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h2 class="fw-bold mb-0" style="color:var(--t-text-heading)">
+        <i class="fas fa-diagram-project me-2" style="color:var(--t-accent)"></i>
+        Hybrid DVR Configuration
+      </h2>
+      <small style="color:var(--t-text-muted)">
+        ISAPI-first with automatic Selenium fallback &mdash; verified, reported, logged
+      </small>
+    </div>
+    <a href="{{ url_for('dvr_config.index') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="fas fa-arrow-left me-1"></i> Standard Wizard
+    </a>
+  </div>
+
+  <!-- ── Method legend ── -->
+  <div class="d-flex gap-3 mb-4 flex-wrap">
+    <span class="badge px-3 py-2" style="background:rgba(0,209,255,0.15);color:var(--t-accent);border:1px solid var(--t-accent)">
+      <i class="fas fa-bolt me-1"></i> ISAPI &mdash; fast, API-direct
+    </span>
+    <span class="badge px-3 py-2" style="background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid #7c3aed">
+      <i class="fab fa-chrome me-1"></i> Selenium &mdash; web UI fallback
+    </span>
+    <span class="badge px-3 py-2" style="background:rgba(16,185,129,0.15);color:#34d399;border:1px solid #059669">
+      <i class="fas fa-check me-1"></i> Verified &mdash; read-back confirmed
+    </span>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- ── LEFT COLUMN: Configuration Forms ── -->
+    <div class="col-xl-5 col-lg-6">
+
+      <!-- Connection -->
+      <div class="card mb-4">
+        <div class="card-header fw-semibold">
+          <i class="fas fa-plug me-2" style="color:var(--t-accent)"></i>Device Connection
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-8">
+              <label class="form-label small">IP Address / Hostname</label>
+              <input type="text" id="f-ip" class="form-control" placeholder="192.168.1.64">
+            </div>
+            <div class="col-4">
+              <label class="form-label small">Port</label>
+              <input type="number" id="f-port" class="form-control" value="80">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">Username</label>
+              <input type="text" id="f-username" class="form-control" value="admin">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">Password</label>
+              <input type="password" id="f-password" class="form-control" placeholder="">
+            </div>
+            <div class="col-12">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="f-https">
+                <label class="form-check-label small" for="f-https">Use HTTPS</label>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-outline-secondary btn-sm mt-3" onclick="testConnect()">
+            <i class="fas fa-network-wired me-1"></i>Test Connection
+          </button>
+          <div id="connect-result" class="mt-2 small"></div>
+        </div>
+      </div>
+
+      <!-- Device Info -->
+      <div class="card mb-4">
+        <div class="card-header fw-semibold">
+          <i class="fas fa-server me-2" style="color:var(--t-accent)"></i>Device Settings
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label small">Device Name</label>
+              <input type="text" id="f-device-name" class="form-control" placeholder="Site Name DVR">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">City</label>
+              <input type="text" id="f-city" class="form-control" placeholder="Dallas">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">State</label>
+              <select id="f-state" class="form-select">
+                <option value="">— select —</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label small">NTP Server</label>
+              <input type="text" id="f-ntp" class="form-control" value="time.google.com">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div class="card mb-4">
+        <div class="card-header fw-semibold">
+          <i class="fas fa-users me-2" style="color:var(--t-accent)"></i>User Accounts
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label small">Client Initials</label>
+              <input type="text" id="f-initials" class="form-control" placeholder="RC" maxlength="4">
+            </div>
+            <div class="col-12">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="f-cms" checked>
+                <label class="form-check-label small" for="f-cms">Create CMS user</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="f-dlt" checked>
+                <label class="form-check-label small" for="f-dlt">Create DLT user</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="f-manager"
+                       onchange="document.getElementById('mgr-fields').style.display=this.checked?'block':'none'">
+                <label class="form-check-label small" for="f-manager">Create Manager account</label>
+              </div>
+              <div id="mgr-fields" class="row g-2 mt-1" style="display:none">
+                <div class="col-6">
+                  <input type="text" id="f-mgr-user" class="form-control form-control-sm" placeholder="manager">
+                </div>
+                <div class="col-6">
+                  <input type="password" id="f-mgr-pass" class="form-control form-control-sm" placeholder="password">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Options -->
+      <div class="card mb-4">
+        <div class="card-header fw-semibold">
+          <i class="fas fa-sliders me-2" style="color:var(--t-accent)"></i>Options
+        </div>
+        <div class="card-body">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="f-format-hdd">
+            <label class="form-check-label small" for="f-format-hdd">
+              Format HDD(s) <span class="text-danger fw-semibold">(destructive — erases all recordings)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Run button -->
+      <button id="run-btn" class="btn btn-primary w-100 py-3 fw-bold"
+              onclick="startJob()" style="font-size:1rem">
+        <i class="fas fa-play me-2"></i>Run Hybrid Configuration
+      </button>
+
+    </div><!-- /LEFT -->
+
+    <!-- ── RIGHT COLUMN: Live Progress & Report ── -->
+    <div class="col-xl-7 col-lg-6">
+
+      <!-- Progress panel -->
+      <div class="card mb-4" id="progress-card" style="display:none">
+        <div class="card-header d-flex justify-content-between align-items-center fw-semibold">
+          <span><i class="fas fa-spinner fa-spin me-2" id="progress-spin" style="color:var(--t-accent)"></i>
+            <span id="progress-title">Running…</span>
+          </span>
+          <small id="progress-counts" style="color:var(--t-text-muted)"></small>
+        </div>
+        <div class="card-body p-0">
+          <!-- Overall bar -->
+          <div class="px-3 pt-3 pb-2">
+            <div class="progress" style="height:6px">
+              <div id="overall-bar" class="progress-bar bg-success" style="width:0%;transition:width 0.4s ease"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-1">
+              <small id="current-task-label" style="color:var(--t-text-muted)">Initialising…</small>
+              <small id="elapsed-label" style="color:var(--t-text-dim)"></small>
+            </div>
+          </div>
+          <!-- Task list -->
+          <div id="task-list" style="max-height:460px;overflow-y:auto">
+            <table class="table table-sm mb-0" style="font-size:0.8rem">
+              <thead>
+                <tr>
+                  <th style="width:34%">Task</th>
+                  <th style="width:14%">Method</th>
+                  <th style="width:12%">Status</th>
+                  <th style="width:12%">Time</th>
+                  <th>Detail / Verify</th>
+                </tr>
+              </thead>
+              <tbody id="task-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Full Report -->
+      <div class="card" id="report-card" style="display:none">
+        <div class="card-header d-flex justify-content-between align-items-center fw-semibold">
+          <span><i class="fas fa-file-alt me-2" style="color:var(--t-accent)"></i>Configuration Report</span>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" onclick="copyReport()">
+              <i class="fas fa-copy me-1"></i>Copy JSON
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="downloadReport()">
+              <i class="fas fa-download me-1"></i>Download
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+
+          <!-- Summary scorecards -->
+          <div class="row g-3 mb-4" id="report-summary-cards"></div>
+
+          <!-- Device info -->
+          <h6 class="fw-bold mb-2" style="color:var(--t-accent)">
+            <i class="fas fa-server me-1"></i>Device Information
+          </h6>
+          <div id="report-device" class="mb-4"></div>
+
+          <!-- Task breakdown table -->
+          <h6 class="fw-bold mb-2" style="color:var(--t-accent)">
+            <i class="fas fa-list-check me-1"></i>Task Breakdown
+          </h6>
+          <div class="table-responsive mb-4">
+            <table class="table table-sm" style="font-size:0.8rem">
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Method</th>
+                  <th>Status</th>
+                  <th>Verified</th>
+                  <th>Duration</th>
+                  <th>Detail</th>
+                  <th>Warning / Action</th>
+                </tr>
+              </thead>
+              <tbody id="report-task-tbody"></tbody>
+            </table>
+          </div>
+
+          <!-- Warnings -->
+          <div id="report-warnings" class="mb-3"></div>
+
+          <!-- Unsupported features -->
+          <div id="report-unsupported"></div>
+
+        </div>
+      </div>
+
+    </div><!-- /RIGHT -->
+  </div>
+</div>
+
+<!-- ── Styles ── -->
+<style>
+.method-badge-isapi {
+    background: rgba(0,209,255,0.12);
+    color: var(--t-accent);
+    border: 1px solid var(--t-accent);
+    font-size: .68rem;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    font-weight: 600;
+}
+.method-badge-selenium {
+    background: rgba(139,92,246,0.12);
+    color: #a78bfa;
+    border: 1px solid #7c3aed;
+    font-size: .68rem;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    font-weight: 600;
+}
+.method-badge-none {
+    background: rgba(255,255,255,0.05);
+    color: var(--t-text-dim);
+    border: 1px solid var(--t-border);
+    font-size: .68rem;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+.method-badge-pending {
+    background: rgba(255,255,255,0.05);
+    color: var(--t-text-dim);
+    border: 1px solid var(--t-border);
+    font-size: .68rem;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    font-style: italic;
+}
+.status-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+}
+.dot-pass    { background: #10b981; }
+.dot-fail    { background: #ef4444; }
+.dot-warn    { background: #f59e0b; }
+.dot-skip    { background: #6b7280; }
+.dot-running { background: var(--t-accent); animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.verify-ok   { color: #10b981; }
+.verify-fail { color: #f59e0b; }
+.report-kv   { display:flex; gap:12px; flex-wrap:wrap; }
+.report-kv-item { font-size:.82rem; padding:6px 12px; background:var(--t-bg-card-alt);
+                  border-radius:6px; border:1px solid var(--t-border); }
+.report-kv-item .kv-label { color:var(--t-text-dim); font-size:.7rem; display:block; }
+.report-kv-item .kv-val   { font-weight:600; color:var(--t-text); }
+</style>
+
+<!-- ── JavaScript ── -->
+<script>
+/* ── State ── */
+var STATE_TIMEZONE = {{ state_timezone_json | safe }};
+var TZ_TO_HIKVISION = {{ tz_to_hikvision_json | safe }};
+var _jobId    = null;
+var _pollTimer = null;
+var _startTs   = null;
+var _report    = null;
+
+/* ── Populate state dropdown ── */
+(function(){
+    var sel = document.getElementById('f-state');
+    Object.keys(STATE_TIMEZONE).sort().forEach(function(st){
+        var opt = document.createElement('option');
+        opt.value = st; opt.textContent = st;
+        sel.appendChild(opt);
+    });
+})();
+
+/* ── Test connect ── */
+function testConnect() {
+    var el = document.getElementById('connect-result');
+    el.innerHTML = '<span style="color:var(--t-text-muted)"><i class="fas fa-spinner fa-spin me-1"></i>Testing…</span>';
+    fetch('/api/dvr/hybrid/test-connect', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(_connPayload())
+    })
+    .then(r => r.json())
+    .then(function(d) {
+        if (d.success) {
+            var info = d.device_info || {};
+            el.innerHTML =
+                '<span style="color:#10b981"><i class="fas fa-check-circle me-1"></i>Connected — ' +
+                (info.model||'?') + ' | FW ' + (info.firmware_version||'?') + '</span>';
+        } else {
+            el.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle me-1"></i>' + (d.error||'Failed') + '</span>';
+        }
+    })
+    .catch(function(e){
+        el.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle me-1"></i>' + e + '</span>';
+    });
+}
+
+/* ── Build connection payload ── */
+function _connPayload() {
+    return {
+        ip:       document.getElementById('f-ip').value.trim(),
+        port:     parseInt(document.getElementById('f-port').value)||80,
+        username: document.getElementById('f-username').value.trim(),
+        password: document.getElementById('f-password').value,
+        use_https: document.getElementById('f-https').checked,
+    };
+}
+
+/* ── Start job ── */
+function startJob() {
+    var ip = document.getElementById('f-ip').value.trim();
+    if (!ip) { alert('Enter device IP address.'); return; }
+
+    var state    = document.getElementById('f-state').value;
+    var tz       = TZ_TO_HIKVISION[STATE_TIMEZONE[state] || ''] || '';
+    var initials = document.getElementById('f-initials').value.trim().toUpperCase();
+    var selUsers = [];
+    if (document.getElementById('f-cms').checked)  selUsers.push('cms');
+    if (document.getElementById('f-dlt').checked)  selUsers.push('dlt');
+    if (document.getElementById('f-manager').checked) selUsers.push('manager');
+
+    var payload = Object.assign(_connPayload(), {
+        device_name:        document.getElementById('f-device-name').value.trim(),
+        city:               document.getElementById('f-city').value.trim(),
+        state:              state,
+        hikvision_timezone: tz,
+        ntp_server:         document.getElementById('f-ntp').value.trim()||'time.google.com',
+        client_initials:    initials,
+        selected_users:     selUsers,
+        create_manager:     document.getElementById('f-manager').checked,
+        manager_username:   document.getElementById('f-mgr-user').value.trim(),
+        manager_password:   document.getElementById('f-mgr-pass').value,
+        format_hdds:        document.getElementById('f-format-hdd').checked,
+    });
+
+    /* Reset UI */
+    _jobId  = null;
+    _report = null;
+    document.getElementById('task-tbody').innerHTML = '';
+    document.getElementById('report-card').style.display = 'none';
+    document.getElementById('progress-card').style.display = 'block';
+    document.getElementById('progress-title').textContent = 'Running…';
+    document.getElementById('progress-spin').style.display = '';
+    document.getElementById('overall-bar').style.width = '0%';
+    document.getElementById('run-btn').disabled = true;
+    _startTs = Date.now();
+    _tickElapsed();
+
+    fetch('/api/dvr/hybrid/start', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(function(d) {
+        if (d.success) {
+            _jobId = d.job_id;
+            _pollTimer = setInterval(_poll, 1500);
+        } else {
+            _setError(d.error || 'Failed to start job');
+        }
+    })
+    .catch(function(e){ _setError(String(e)); });
+}
+
+/* ── Poll status ── */
+function _poll() {
+    if (!_jobId) return;
+    fetch('/api/dvr/hybrid/status/' + _jobId)
+    .then(r => r.json())
+    .then(function(d) {
+        if (!d.success) return;
+        _renderProgress(d.status);
+        if (d.status.phase === 'done' || d.status.phase === 'error') {
+            clearInterval(_pollTimer);
+            _pollTimer = null;
+            document.getElementById('progress-spin').style.display = 'none';
+            document.getElementById('run-btn').disabled = false;
+            if (d.status.phase === 'done') {
+                document.getElementById('progress-title').textContent = 'Complete';
+                _fetchReport();
+            } else {
+                document.getElementById('progress-title').textContent = 'Error: ' + d.status.error;
+            }
+        }
+    })
+    .catch(function(){});
+}
+
+/* ── Render live task rows ── */
+function _renderProgress(s) {
+    var tbody = document.getElementById('task-tbody');
+    var tasks = s.tasks || [];
+    var total = tasks.length;
+    var done  = tasks.filter(function(t){ return t.status !== 'skip' && t.method !== 'none'; }).length;
+
+    /* overall bar */
+    if (s.phase === 'done') {
+        document.getElementById('overall-bar').style.width = '100%';
+    } else if (total > 0) {
+        document.getElementById('overall-bar').style.width = Math.round((done/Math.max(total,1))*100) + '%';
+    }
+
+    /* counts */
+    document.getElementById('progress-counts').textContent =
+        s.passed + ' pass · ' + s.failed + ' fail · ' + s.warned + ' warn · ' +
+        s.isapi_tasks + ' ISAPI · ' + s.selenium_tasks + ' Selenium';
+
+    /* current task */
+    document.getElementById('current-task-label').textContent = s.current_task || (s.phase==='done'?'All tasks complete':'');
+
+    /* build rows */
+    var html = '';
+    tasks.forEach(function(t) {
+        var methodBadge = _methodBadge(t.method);
+        var statusDot   = _statusDot(t.status);
+        var verifyIcon  = t.verified
+            ? '<i class="fas fa-check-circle verify-ok" title="' + _esc(t.verify_detail) + '"></i>'
+            : (t.status !== 'skip' && t.method !== 'none'
+               ? '<i class="fas fa-exclamation-circle verify-fail" title="' + _esc(t.verify_detail) + '"></i>'
+               : '<span style="color:var(--t-text-dim)">—</span>');
+        var isapi_err   = t.isapi_error ? '<br><small style="color:#f59e0b">ISAPI: ' + _esc(t.isapi_error) + '</small>' : '';
+        var sel_err     = t.selenium_error ? '<br><small style="color:#a78bfa">Sel: ' + _esc(t.selenium_error) + '</small>' : '';
+        var dur         = t.duration_ms ? (t.duration_ms < 1000 ? t.duration_ms + 'ms' : (t.duration_ms/1000).toFixed(1)+'s') : '—';
+
+        html += '<tr>' +
+            '<td style="color:var(--t-text)">' + _esc(t.task) + '</td>' +
+            '<td>' + methodBadge + '</td>' +
+            '<td>' + statusDot + '</td>' +
+            '<td style="color:var(--t-text-dim)">' + dur + '</td>' +
+            '<td style="max-width:260px;word-break:break-word;color:var(--t-text-muted)">' +
+                _esc(t.detail||'') + isapi_err + sel_err +
+                '<br>' + verifyIcon +
+                (t.verify_detail && !t.verified ? ' <small style="color:var(--t-text-dim)">' + _esc(t.verify_detail) + '</small>' : '') +
+            '</td>' +
+        '</tr>';
+    });
+
+    /* show current running task placeholder */
+    if (s.phase === 'running' && s.current_task) {
+        html += '<tr style="opacity:.5"><td colspan="5">' +
+            '<span class="status-dot dot-running"></span>' +
+            _esc(s.current_task) + ' …</td></tr>';
+    }
+
+    tbody.innerHTML = html;
+
+    /* auto-scroll to bottom */
+    var tl = document.getElementById('task-list');
+    tl.scrollTop = tl.scrollHeight;
+}
+
+/* ── Fetch and render full report ── */
+function _fetchReport() {
+    fetch('/api/dvr/hybrid/report/' + _jobId)
+    .then(r => r.json())
+    .then(function(d) {
+        if (d.success) {
+            _report = d.report;
+            _renderReport(d.report);
+            document.getElementById('report-card').style.display = 'block';
+        }
+    })
+    .catch(function(){});
+}
+
+function _renderReport(rpt) {
+    /* Summary scorecards */
+    var s = rpt.summary;
+    var totalMs = s.total_duration_ms || 0;
+    var durStr  = totalMs < 60000
+        ? (totalMs/1000).toFixed(1) + 's'
+        : Math.floor(totalMs/60000) + 'm ' + Math.round((totalMs%60000)/1000) + 's';
+
+    var cards = [
+        {icon:'fa-check-circle', color:'#10b981', label:'Passed',   val: s.passed},
+        {icon:'fa-times-circle', color:'#ef4444', label:'Failed',   val: s.failed},
+        {icon:'fa-exclamation-triangle', color:'#f59e0b', label:'Warnings', val: s.warned},
+        {icon:'fa-bolt',         color:'var(--t-accent)', label:'ISAPI Tasks', val: s.isapi_tasks},
+        {icon:'fa-chrome',       color:'#a78bfa', label:'Selenium Tasks', val: s.selenium_tasks},
+        {icon:'fa-clock',        color:'var(--t-text-muted)', label:'Duration', val: durStr},
+    ];
+    document.getElementById('report-summary-cards').innerHTML = cards.map(function(c){
+        return '<div class="col-4 col-md-2">' +
+            '<div class="card text-center py-2">' +
+            '<i class="fas ' + c.icon + ' mb-1" style="color:' + c.color + ';font-size:1.4rem"></i>' +
+            '<div class="fw-bold" style="font-size:1.1rem;color:var(--t-text)">' + c.val + '</div>' +
+            '<div style="font-size:.68rem;color:var(--t-text-dim)">' + c.label + '</div>' +
+            '</div></div>';
+    }).join('');
+
+    /* Device info */
+    var dev = rpt.device;
+    var cfg = rpt.configuration;
+    document.getElementById('report-device').innerHTML =
+        '<div class="report-kv">' +
+        _kv('Model', dev.model) + _kv('Firmware', dev.firmware_version) +
+        _kv('Serial', dev.serial_number) + _kv('Device Name', dev.device_name) +
+        _kv('Channels', dev.total_channels) + _kv('IP', dev.ip + ':' + dev.port) +
+        _kv('State', cfg.state) + _kv('Timezone', cfg.timezone) +
+        _kv('NTP Server', cfg.ntp_server) + _kv('Initials', cfg.client_initials) +
+        '</div>';
+
+    /* Task table */
+    var tbody = '';
+    (rpt.tasks||[]).forEach(function(t) {
+        var statusCls = {pass:'success', fail:'danger', warn:'warning', skip:'secondary'}[t.status]||'secondary';
+        var verifyBadge = t.verified
+            ? '<span class="badge bg-success" style="font-size:.65rem">✓ verified</span>'
+            : '<span class="badge bg-warning text-dark" style="font-size:.65rem">! unverified</span>';
+        tbody += '<tr>' +
+            '<td style="color:var(--t-text)">' + _esc(t.task) + '</td>' +
+            '<td>' + _methodBadge(t.method) + '</td>' +
+            '<td><span class="badge bg-' + statusCls + '" style="font-size:.65rem">' + t.status + '</span></td>' +
+            '<td>' + verifyBadge + '</td>' +
+            '<td style="color:var(--t-text-dim);white-space:nowrap">' + (t.duration_ms ? (t.duration_ms/1000).toFixed(2)+'s' : '—') + '</td>' +
+            '<td style="color:var(--t-text-muted);font-size:.78rem;max-width:200px;word-break:break-word">' + _esc(t.detail||'') + '</td>' +
+            '<td style="color:#f59e0b;font-size:.78rem;max-width:160px">' + _esc(t.warning||'') + '</td>' +
+        '</tr>';
+    });
+    document.getElementById('report-task-tbody').innerHTML = tbody;
+
+    /* Warnings */
+    var warns = rpt.warnings || [];
+    document.getElementById('report-warnings').innerHTML = warns.length
+        ? '<h6 class="fw-bold mb-2" style="color:#f59e0b"><i class="fas fa-exclamation-triangle me-1"></i>Warnings (' + warns.length + ')</h6>' +
+          '<ul class="list-group mb-3">' + warns.map(function(w){
+            return '<li class="list-group-item" style="border-left:3px solid #f59e0b;font-size:.82rem">' +
+                '<strong>' + _esc(w.task) + ':</strong> ' + _esc(w.warning) + '</li>';
+          }).join('') + '</ul>'
+        : '';
+
+    /* Unsupported */
+    var unsup = rpt.unsupported_features || [];
+    document.getElementById('report-unsupported').innerHTML = unsup.length
+        ? '<h6 class="fw-bold mb-2" style="color:#ef4444"><i class="fas fa-ban me-1"></i>Failed Tasks (' + unsup.length + ')</h6>' +
+          '<ul class="list-group">' + unsup.map(function(u){
+            return '<li class="list-group-item" style="border-left:3px solid #ef4444;font-size:.82rem">' +
+                '<strong>' + _esc(u.task) + ':</strong> ' + _esc(u.detail) + '</li>';
+          }).join('') + '</ul>'
+        : '';
+}
+
+/* ── Helpers ── */
+function _methodBadge(method) {
+    if (method === 'isapi')    return '<span class="method-badge-isapi"><i class="fas fa-bolt me-1"></i>ISAPI</span>';
+    if (method === 'selenium') return '<span class="method-badge-selenium"><i class="fab fa-chrome me-1"></i>Selenium</span>';
+    if (method === 'none')     return '<span class="method-badge-none">failed</span>';
+    return '<span class="method-badge-pending">pending</span>';
+}
+
+function _statusDot(status) {
+    var map = {pass:'dot-pass',fail:'dot-fail',warn:'dot-warn',skip:'dot-skip'};
+    var cls = map[status] || 'dot-skip';
+    var label = status || '…';
+    return '<span class="status-dot ' + cls + '"></span>' +
+           '<span style="color:var(--t-text-dim);font-size:.75rem">' + label + '</span>';
+}
+
+function _kv(label, val) {
+    return '<div class="report-kv-item">' +
+        '<span class="kv-label">' + label + '</span>' +
+        '<span class="kv-val">' + _esc(String(val||'—')) + '</span>' +
+    '</div>';
+}
+
+function _esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function _setError(msg) {
+    document.getElementById('progress-title').textContent = 'Error: ' + msg;
+    document.getElementById('progress-spin').style.display = 'none';
+    document.getElementById('run-btn').disabled = false;
+    clearInterval(_pollTimer);
+}
+
+function _tickElapsed() {
+    var el = document.getElementById('elapsed-label');
+    if (!el || !_startTs) return;
+    var sec = Math.floor((Date.now() - _startTs) / 1000);
+    var m = Math.floor(sec/60), s = sec%60;
+    el.textContent = m ? m + 'm ' + s + 's' : s + 's';
+    setTimeout(_tickElapsed, 1000);
+}
+
+function copyReport() {
+    if (!_report) return;
+    navigator.clipboard.writeText(JSON.stringify(_report, null, 2))
+        .then(function(){ alert('Report JSON copied to clipboard.'); });
+}
+
+function downloadReport() {
+    if (!_report) return;
+    var blob = new Blob([JSON.stringify(_report, null, 2)], {type:'application/json'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'hybrid-dvr-report-' + (_jobId||'report') + '.json';
+    a.click();
+}
+</script>
+{% endblock %}
