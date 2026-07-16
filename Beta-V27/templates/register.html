@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+
+{% block title %}Register - AZ Sentinel X{% endblock %}
+
+{% block auth_content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow">
+            <div class="card-header text-center bg-primary text-white py-3">
+                <h3 class="mb-0">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    AZ Sentinel X
+                </h3>
+                <p class="mb-0 mt-2">Security Alert Management System</p>
+            </div>
+            <div class="card-body p-4">
+                <h4 class="card-title mb-4 text-center">Create Account</h4>
+                
+                <form method="POST" action="{{ url_for('auth.register') }}">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-user"></i></span>
+                            <input type="text" class="form-control" id="username" name="username" required autofocus>
+                        </div>
+                        <div class="form-text">Choose a unique username</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        <div class="form-text">We'll use this for alert notifications</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        <div class="form-text">Use at least 8 characters with a mix of letters, numbers, and symbols</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="confirm_password" class="form-label">Confirm Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-user-plus me-2"></i>Create Account
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center py-3">
+                <div class="text-muted">Already have an account?</div>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-link">Sign In</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6 col-lg-5">
+        <div class="alert alert-info">
+            <div class="d-flex">
+                <div class="me-3">
+                    <i class="fas fa-lightbulb fs-3"></i>
+                </div>
+                <div>
+                    <h5>First User Note</h5>
+                    <p class="mb-0">The first user to register will automatically be assigned administrator privileges. Subsequent users will be assigned as agents by default.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
