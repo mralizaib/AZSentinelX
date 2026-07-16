@@ -1,1 +1,0 @@
-- [Wazuh CTI aggregation ordering](wazuh-cti-ordering.md) — must sort by max_date (timestamp) not _count, or old high-freq CVEs crowd out new detections
