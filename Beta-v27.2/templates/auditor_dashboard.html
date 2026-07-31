@@ -1,0 +1,380 @@
+{% extends "layout.html" %}
+
+{% block title %}Auditor Dashboard — ByteIT SentinelX{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-user-shield me-2 text-info"></i>Auditor Dashboard
+        <span class="badge ms-2 py-1 px-2" style="font-size:12px;background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.3);vertical-align:middle;">Compliance View</span>
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0 gap-2">
+        <!-- Time range selector -->
+        <div class="btn-group" role="group">
+            <button class="btn btn-sm btn-outline-secondary auditor-range active" data-days="7">7 Days</button>
+            <button class="btn btn-sm btn-outline-secondary auditor-range" data-days="30">30 Days</button>
+            <button class="btn btn-sm btn-outline-secondary auditor-range" data-days="90">90 Days</button>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" id="auditor-refresh-btn" title="Refresh">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Compliance Notice -->
+<div class="alert border-0 mb-4 py-2 px-3 d-flex align-items-center gap-2"
+     style="background:rgba(6,182,212,.07);border-left:3px solid #06b6d4 !important;border-radius:6px;">
+    <i class="fas fa-info-circle text-info"></i>
+    <span class="small text-muted">
+        This dashboard shows <strong class="text-light">actionable security incidents only</strong>.
+        Informational events, registry audit noise, routine Windows events, and FIM checksum updates are excluded from all statistics.
+    </span>
+</div>
+
+<!-- Summary Cards Row -->
+<div class="row g-3 mb-4">
+    <!-- Critical -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm h-100" style="border-top:3px solid #ef4444 !important;">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                     style="width:48px;height:48px;background:rgba(239,68,68,.15);">
+                    <i class="fas fa-skull-crossbones text-danger fs-5"></i>
+                </div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Critical</div>
+                    <div class="fs-3 fw-bold text-danger" id="aud-critical">—</div>
+                    <div class="text-muted" style="font-size:11px;">Incidents requiring immediate action</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- High -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm h-100" style="border-top:3px solid #f97316 !important;">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                     style="width:48px;height:48px;background:rgba(249,115,22,.15);">
+                    <i class="fas fa-fire text-warning fs-5"></i>
+                </div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">High</div>
+                    <div class="fs-3 fw-bold text-warning" id="aud-high">—</div>
+                    <div class="text-muted" style="font-size:11px;">High-severity security events</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Medium -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm h-100" style="border-top:3px solid #eab308 !important;">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                     style="width:48px;height:48px;background:rgba(234,179,8,.12);">
+                    <i class="fas fa-triangle-exclamation fs-5" style="color:#eab308;"></i>
+                </div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Medium</div>
+                    <div class="fs-3 fw-bold" id="aud-medium" style="color:#eab308;">—</div>
+                    <div class="text-muted" style="font-size:11px;">Notable events under review</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Total Actionable -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm h-100" style="border-top:3px solid #06b6d4 !important;">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                     style="width:48px;height:48px;background:rgba(6,182,212,.12);">
+                    <i class="fas fa-shield-halved text-info fs-5"></i>
+                </div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Total Actionable</div>
+                    <div class="fs-3 fw-bold text-info" id="aud-total">—</div>
+                    <div class="text-muted" style="font-size:11px;">Real security incidents this period</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Timeline + Top Rules Row -->
+<div class="row g-3 mb-4">
+    <!-- Incident Trend -->
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-dark border-bottom border-secondary py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-light">
+                    <i class="fas fa-chart-line me-2 text-info"></i>Security Incident Trend
+                </h5>
+                <span class="badge bg-secondary" style="font-size:10px;">Medium, High &amp; Critical only</span>
+            </div>
+            <div class="card-body">
+                <canvas id="auditor-timeline-chart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Security Rules -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-dark border-bottom border-secondary py-3">
+                <h5 class="mb-0 text-light">
+                    <i class="fas fa-list-ol me-2 text-warning"></i>Top Security Rules
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th class="ps-3 py-2" style="font-size:11px;text-transform:uppercase;">Rule</th>
+                            <th class="pe-3 py-2 text-end" style="font-size:11px;text-transform:uppercase;">Count</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aud-top-rules">
+                        <tr><td colspan="2" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Agents + Threat Categories Row -->
+<div class="row g-3">
+    <!-- Top Agents with Incidents -->
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-dark border-bottom border-secondary py-3">
+                <h5 class="mb-0 text-light">
+                    <i class="fas fa-desktop me-2 text-danger"></i>Endpoints with Most Incidents
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th class="ps-3 py-2" style="font-size:11px;text-transform:uppercase;">Endpoint</th>
+                            <th class="py-2" style="font-size:11px;text-transform:uppercase;">IP</th>
+                            <th class="pe-3 py-2 text-end" style="font-size:11px;text-transform:uppercase;">Incidents</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aud-top-agents">
+                        <tr><td colspan="3" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compliance Summary -->
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-dark border-bottom border-secondary py-3">
+                <h5 class="mb-0 text-light">
+                    <i class="fas fa-clipboard-check me-2 text-success"></i>Compliance Summary
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="aud-compliance-body">
+                    <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let auditorChart = null;
+let currentDays = 7;
+
+document.addEventListener('DOMContentLoaded', function () {
+    loadAuditorData(currentDays);
+
+    document.querySelectorAll('.auditor-range').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.auditor-range').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            currentDays = parseInt(this.getAttribute('data-days'));
+            loadAuditorData(currentDays);
+        });
+    });
+
+    const refreshBtn = document.getElementById('auditor-refresh-btn');
+    if (refreshBtn) refreshBtn.addEventListener('click', () => loadAuditorData(currentDays));
+});
+
+function loadAuditorData(days) {
+    Promise.all([
+        fetch(`/api/auditor/stats?days=${days}`).then(r => r.json()),
+        fetch(`/api/auditor/timeline?days=${days}`).then(r => r.json())
+    ]).then(([stats, timeline]) => {
+        renderStats(stats);
+        renderTimeline(timeline, days);
+    }).catch(err => console.error('Auditor dashboard error:', err));
+}
+
+function renderStats(data) {
+    if (data.error) return;
+    const sev = data.severity || {};
+
+    document.getElementById('aud-critical').textContent = (sev.critical || 0).toLocaleString();
+    document.getElementById('aud-high').textContent = (sev.high || 0).toLocaleString();
+    document.getElementById('aud-medium').textContent = (sev.medium || 0).toLocaleString();
+    document.getElementById('aud-total').textContent = (data.total_actionable || 0).toLocaleString();
+
+    // Top rules
+    const tbody = document.getElementById('aud-top-rules');
+    if (data.top_rules && data.top_rules.length > 0) {
+        tbody.innerHTML = data.top_rules.map(r => {
+            const lvlClass = r.level >= 12 ? 'bg-danger' : r.level >= 7 ? 'bg-warning text-dark' : 'bg-secondary';
+            return `<tr>
+                <td class="ps-3 py-2">
+                    <div class="fw-semibold text-light small">${escHtml(r.description)}</div>
+                    <div class="text-muted" style="font-size:10px;">
+                        Rule ${r.rule_id}
+                        <span class="badge ${lvlClass} ms-1" style="font-size:9px;">Lvl ${r.level}</span>
+                    </div>
+                </td>
+                <td class="pe-3 py-2 text-end">
+                    <span class="badge bg-primary rounded-pill">${r.count.toLocaleString()}</span>
+                </td>
+            </tr>`;
+        }).join('');
+    } else {
+        tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-3 small">No data available</td></tr>';
+    }
+
+    // Top agents
+    const agentTbody = document.getElementById('aud-top-agents');
+    if (data.top_agents && data.top_agents.length > 0) {
+        agentTbody.innerHTML = data.top_agents.map(a => `
+            <tr>
+                <td class="ps-3 py-2 fw-semibold text-light small">${escHtml(a.name)}</td>
+                <td class="py-2 text-muted small font-monospace">${escHtml(a.ip)}</td>
+                <td class="pe-3 py-2 text-end">
+                    <span class="badge bg-danger rounded-pill">${a.count.toLocaleString()}</span>
+                </td>
+            </tr>`).join('');
+    } else {
+        agentTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3 small">No data available</td></tr>';
+    }
+
+    // Compliance summary panel
+    const compBody = document.getElementById('aud-compliance-body');
+    const highCrit = data.high_critical || 0;
+    const total = data.total_actionable || 0;
+    const medPct = total > 0 ? Math.round(((sev.medium || 0) / total) * 100) : 0;
+    const highPct = total > 0 ? Math.round((((sev.high || 0) + (sev.critical || 0)) / total) * 100) : 0;
+
+    compBody.innerHTML = `
+        <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+                <span class="small text-muted">High &amp; Critical Incidents</span>
+                <span class="small fw-bold text-danger">${highCrit.toLocaleString()}</span>
+            </div>
+            <div class="progress" style="height:6px;">
+                <div class="progress-bar bg-danger" style="width:${highPct}%;"></div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+                <span class="small text-muted">Medium Incidents</span>
+                <span class="small fw-bold" style="color:#eab308;">${(sev.medium || 0).toLocaleString()}</span>
+            </div>
+            <div class="progress" style="height:6px;">
+                <div class="progress-bar" style="width:${medPct}%;background:#eab308;"></div>
+            </div>
+        </div>
+        <hr class="border-secondary my-3">
+        <div class="row g-2 text-center">
+            <div class="col-6">
+                <div class="p-2 rounded" style="background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);">
+                    <div class="text-success fw-bold fs-5">${total > 0 && highCrit === 0 ? '✓' : total.toLocaleString()}</div>
+                    <div class="text-muted" style="font-size:10px;">Total Actionable Events</div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="p-2 rounded" style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);">
+                    <div class="text-danger fw-bold fs-5">${highCrit.toLocaleString()}</div>
+                    <div class="text-muted" style="font-size:10px;">Priority Incidents</div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-3 p-2 rounded small text-muted" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);">
+            <i class="fas fa-info-circle me-1 text-info"></i>
+            Informational events, registry noise, and routine system alerts are excluded from this view.
+            Statistics represent real security incidents suitable for compliance reporting.
+        </div>`;
+}
+
+function renderTimeline(timeline, days) {
+    const ctx = document.getElementById('auditor-timeline-chart');
+    if (!ctx) return;
+
+    const labels = timeline.map(p => {
+        const d = new Date(p.timestamp);
+        return days <= 2
+            ? d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+            : d.toLocaleDateString([], {month:'short', day:'numeric'});
+    });
+
+    const datasets = [
+        {
+            label: 'Critical',
+            data: timeline.map(p => p.critical || 0),
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239,68,68,.15)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2,
+        },
+        {
+            label: 'High',
+            data: timeline.map(p => p.high || 0),
+            borderColor: '#f97316',
+            backgroundColor: 'rgba(249,115,22,.10)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2,
+        },
+        {
+            label: 'Medium',
+            data: timeline.map(p => p.medium || 0),
+            borderColor: '#eab308',
+            backgroundColor: 'rgba(234,179,8,.08)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2,
+        }
+    ];
+
+    if (auditorChart) auditorChart.destroy();
+    auditorChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { color: '#a0aec0', font: { size: 11 } } },
+                tooltip: { backgroundColor: '#1a1c23', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1 }
+            },
+            scales: {
+                x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.05)' } },
+                y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.05)' } }
+            }
+        }
+    });
+}
+
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str || '';
+    return d.innerHTML;
+}
+</script>
+{% endblock %}
