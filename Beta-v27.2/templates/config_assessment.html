@@ -1,0 +1,689 @@
+{% extends "layout.html" %}
+
+{% block title %}Configuration Assessment – REBIZ Sentinel X{% endblock %}
+
+{% block content %}
+<style>
+    .ca-stat-card { cursor: pointer; transition: transform .15s, box-shadow .15s; }
+    .ca-stat-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+
+    .agent-row { cursor: pointer; transition: background .15s; }
+    .agent-row:hover { background: rgba(0,209,255,.06) !important; }
+    .agent-row.selected { background: rgba(0,209,255,.12) !important; border-left: 3px solid #00d1ff; }
+
+    .score-bar-wrap { background: #1a1c23; border-radius: 6px; height: 8px; overflow: hidden; }
+    .score-bar-fill { height: 100%; border-radius: 6px; transition: width .4s ease; }
+
+    .badge-passed    { background: rgba(74,222,128,.15); color: #4ade80; border: 1px solid rgba(74,222,128,.3); }
+    .badge-failed    { background: rgba(255,107,107,.15); color: #ff6b6b; border: 1px solid rgba(255,107,107,.3); }
+    .badge-na        { background: rgba(148,163,184,.12); color: #94a3b8; border: 1px solid rgba(148,163,184,.25); }
+    .badge-error     { background: rgba(249,115,22,.15);  color: #f97316; border: 1px solid rgba(249,115,22,.3); }
+    .badge-active    { background: rgba(74,222,128,.15);  color: #4ade80; }
+    .badge-disconnected { background: rgba(255,107,107,.15); color: #ff6b6b; }
+    .badge-never_connected { background: rgba(148,163,184,.12); color: #94a3b8; }
+
+    .policy-card { border: 1px solid rgba(255,255,255,.06); border-radius: 10px; background: #13151e;
+                   transition: border-color .2s; cursor: pointer; }
+    .policy-card:hover { border-color: rgba(0,209,255,.3); }
+
+    .check-row-passed    { border-left: 3px solid #4ade80; }
+    .check-row-failed    { border-left: 3px solid #ff6b6b; }
+    .check-row-na        { border-left: 3px solid #4a5568; }
+    .check-row-error     { border-left: 3px solid #f97316; }
+
+    .check-detail { display: none; background: #0d0f16; border-radius: 0 0 8px 8px;
+                    border: 1px solid rgba(255,255,255,.06); border-top: none; }
+    .check-detail.open { display: block; }
+
+    .tab-btn { background: none; border: 1px solid rgba(255,255,255,.1); color: #94a3b8;
+               border-radius: 20px; padding: 4px 14px; font-size: 12px; cursor: pointer; transition: all .2s; }
+    .tab-btn.active { background: rgba(0,209,255,.15); border-color: #00d1ff; color: #00d1ff; }
+
+    .spinner-overlay { position: absolute; inset: 0; display: flex; align-items: center;
+                       justify-content: center; background: rgba(10,14,26,.7); z-index: 10; border-radius: 8px; }
+
+    #agent-detail-panel { display: none; }
+    #checks-panel { display: none; }
+</style>
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0"><i class="fas fa-shield-halved me-2 text-info"></i>Configuration Assessment</h1>
+        <p class="text-muted small mt-1 mb-0">
+            <i class="fas fa-info-circle me-1"></i>
+            Security Configuration Assessment (SCA) results from all Wazuh-monitored machines.
+            Click any agent to view policy details and identify misconfigurations.
+        </p>
+    </div>
+    <div class="btn-toolbar mb-2 mb-md-0 gap-2">
+        <div class="input-group input-group-sm" style="width:220px">
+            <span class="input-group-text bg-dark border-secondary"><i class="fas fa-search text-muted"></i></span>
+            <input type="text" id="agent-search" class="form-control bg-dark border-secondary text-light"
+                   placeholder="Search agents…">
+        </div>
+        <button class="btn btn-sm btn-outline-info" id="refresh-agents-btn">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="row g-3 mb-4" id="summary-stats">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm text-center py-3 ca-stat-card">
+            <div class="display-6 fw-bold text-info" id="stat-agents">–</div>
+            <div class="small text-muted">Total Agents</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm text-center py-3 ca-stat-card" onclick="filterAgents('active')">
+            <div class="display-6 fw-bold text-success" id="stat-active">–</div>
+            <div class="small text-muted">Active</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm text-center py-3 ca-stat-card" onclick="filterAgents('disconnected')">
+            <div class="display-6 fw-bold text-danger" id="stat-disconnected">–</div>
+            <div class="small text-muted">Disconnected</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm text-center py-3 ca-stat-card" onclick="filterAgents('never_connected')">
+            <div class="display-6 fw-bold text-secondary" id="stat-never">–</div>
+            <div class="small text-muted">Never Connected</div>
+        </div>
+    </div>
+</div>
+
+<!-- Status filter tabs -->
+<div class="mb-3 d-flex gap-2 flex-wrap">
+    <button class="tab-btn active" onclick="filterAgents('all')" id="tab-all">All Agents</button>
+    <button class="tab-btn" onclick="filterAgents('active')" id="tab-active">Active</button>
+    <button class="tab-btn" onclick="filterAgents('disconnected')" id="tab-disconnected">Disconnected</button>
+    <button class="tab-btn" onclick="filterAgents('never_connected')" id="tab-never">Never Connected</button>
+</div>
+
+<!-- Connection error banner -->
+<div id="wazuh-error-banner" class="alert alert-danger d-none mb-3 d-flex align-items-start gap-3" role="alert"
+     style="background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.35);color:#ff6b6b">
+    <i class="fas fa-exclamation-circle fa-lg mt-1 flex-shrink-0"></i>
+    <div>
+        <div class="fw-semibold">Unable to reach Wazuh server</div>
+        <div class="small mt-1" id="wazuh-error-detail"></div>
+        <div class="small text-muted mt-2">
+            Check that <code>WAZUH_API_URL</code>, <code>WAZUH_API_USER</code>, and <code>WAZUH_API_PASSWORD</code>
+            are correctly set in your environment, and that the Wazuh server is reachable from this machine.
+        </div>
+    </div>
+    <button type="button" class="btn-close ms-auto" style="filter:invert(1)" onclick="this.closest('.alert').classList.add('d-none')"></button>
+</div>
+
+<!-- Main 2-column layout -->
+<div class="row g-3">
+    <!-- Left: Agent List -->
+    <div class="col-lg-4" id="agents-col">
+        <div class="card border-0 shadow-sm" style="min-height:500px; position:relative">
+            <div id="agents-loading" class="spinner-overlay">
+                <div class="spinner-border text-info" role="status"></div>
+            </div>
+            <div class="card-header border-bottom border-secondary d-flex justify-content-between align-items-center py-2">
+                <span class="small fw-semibold text-light"><i class="fas fa-desktop me-2 text-info"></i>Agents</span>
+                <span class="badge bg-secondary" id="agents-count-badge">–</span>
+            </div>
+            <div class="card-body p-0">
+                <div id="agents-list" class="list-group list-group-flush"></div>
+                <div id="agents-empty" class="text-center py-5 text-muted d-none">
+                    <i class="fas fa-server fa-2x mb-2"></i><br>No agents found
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Agent Detail Panel -->
+    <div class="col-lg-8">
+
+        <!-- Placeholder when nothing selected -->
+        <div id="select-placeholder" class="card border-0 shadow-sm d-flex align-items-center justify-content-center"
+             style="min-height:500px">
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-mouse-pointer fa-3x mb-3 text-info opacity-50"></i>
+                <h5>Select an agent</h5>
+                <p class="small">Click any agent on the left to view its configuration assessment results.</p>
+            </div>
+        </div>
+
+        <!-- Agent detail panel -->
+        <div id="agent-detail-panel">
+
+            <!-- Agent info bar -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-3">
+                    <div>
+                        <div class="small text-muted">Agent</div>
+                        <div class="fw-bold text-light" id="detail-name">–</div>
+                    </div>
+                    <div>
+                        <div class="small text-muted">ID</div>
+                        <div class="fw-semibold text-info font-monospace" id="detail-id">–</div>
+                    </div>
+                    <div>
+                        <div class="small text-muted">IP</div>
+                        <div class="fw-semibold" id="detail-ip">–</div>
+                    </div>
+                    <div>
+                        <div class="small text-muted">OS</div>
+                        <div class="fw-semibold" id="detail-os">–</div>
+                    </div>
+                    <div>
+                        <div class="small text-muted">Status</div>
+                        <span class="badge" id="detail-status">–</span>
+                    </div>
+                    <div>
+                        <div class="small text-muted">Group</div>
+                        <div class="fw-semibold" id="detail-group">–</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Policies -->
+            <div class="card border-0 shadow-sm mb-3" style="position:relative; min-height:120px">
+                <div id="policies-loading" class="spinner-overlay" style="display:none">
+                    <div class="spinner-border text-info" role="status"></div>
+                </div>
+                <div class="card-header border-bottom border-secondary d-flex justify-content-between align-items-center py-2">
+                    <span class="small fw-semibold text-light"><i class="fas fa-clipboard-check me-2 text-warning"></i>SCA Policies</span>
+                    <span class="badge bg-secondary" id="policies-count-badge">–</span>
+                </div>
+                <div class="card-body p-2">
+                    <div id="policies-list" class="row g-2"></div>
+                    <div id="policies-empty" class="text-center py-4 text-muted d-none">
+                        <i class="fas fa-clipboard fa-2x mb-2"></i><br>
+                        No SCA policies found for this agent.<br>
+                        <small>Ensure SCA is enabled on the Wazuh manager.</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Checks panel -->
+            <div id="checks-panel" class="card border-0 shadow-sm" style="position:relative; min-height:100px">
+                <div id="checks-loading" class="spinner-overlay" style="display:none">
+                    <div class="spinner-border text-info" role="status"></div>
+                </div>
+                <div class="card-header border-bottom border-secondary py-2">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                        <div>
+                            <div class="small fw-semibold text-light">
+                                <i class="fas fa-list-check me-2 text-info"></i>
+                                <span id="checks-policy-name">Checks</span>
+                            </div>
+                            <div class="d-flex gap-2 mt-1 flex-wrap" id="checks-summary-badges"></div>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap align-items-center">
+                            <!-- result filter -->
+                            <div class="d-flex gap-1" id="result-filter-btns">
+                                <button class="tab-btn active" onclick="applyResultFilter('all')" id="rf-all">All</button>
+                                <button class="tab-btn" onclick="applyResultFilter('failed')" id="rf-failed">
+                                    <i class="fas fa-times-circle me-1"></i>Failed
+                                </button>
+                                <button class="tab-btn" onclick="applyResultFilter('passed')" id="rf-passed">
+                                    <i class="fas fa-check-circle me-1"></i>Passed
+                                </button>
+                                <button class="tab-btn" onclick="applyResultFilter('not applicable')" id="rf-na">N/A</button>
+                            </div>
+                            <!-- Download -->
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="fas fa-download me-1"></i>Download
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="#" onclick="downloadReport('pdf'); return false;">
+                                        <i class="fas fa-file-pdf me-2 text-danger"></i>PDF Report</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="downloadReport('csv'); return false;">
+                                        <i class="fas fa-file-csv me-2 text-success"></i>CSV Export</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="downloadReport('xlsx'); return false;">
+                                        <i class="fas fa-file-excel me-2 text-success"></i>Excel (XLSX)</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Auditor callout when failed checks exist -->
+                    <div id="auditor-banner" class="d-none mt-2 p-2 rounded"
+                         style="background:rgba(255,107,107,.1); border:1px solid rgba(255,107,107,.3)">
+                        <i class="fas fa-exclamation-triangle me-2 text-danger"></i>
+                        <span class="small text-danger fw-semibold" id="auditor-banner-text"></span>
+                    </div>
+                </div>
+                <div class="card-body p-2">
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text bg-dark border-secondary"><i class="fas fa-search text-muted"></i></span>
+                        <input type="text" id="checks-search" class="form-control bg-dark border-secondary text-light"
+                               placeholder="Search checks…" oninput="renderChecks()">
+                    </div>
+                    <div id="checks-list"></div>
+                    <div id="checks-empty" class="text-center py-4 text-muted d-none">
+                        <i class="fas fa-check-double fa-2x mb-2"></i><br>No checks match the current filter.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Check detail modal -->
+<div class="modal fade" id="check-detail-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" id="check-modal-header"
+                 style="background: linear-gradient(135deg,#0f2744,#1a3a5f);">
+                <div>
+                    <h5 class="modal-title mb-0 text-white" id="check-modal-title">Check Detail</h5>
+                    <small class="text-muted" id="check-modal-id"></small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="check-modal-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────
+let allAgents = [];
+let currentAgentId = null;
+let currentPolicyId = null;
+let currentPolicyName = '';
+let allChecks = [];
+let activeStatusFilter = 'all';
+let activeResultFilter = 'all';
+
+// ── Init ───────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    loadAgents();
+    document.getElementById('agent-search').addEventListener('input', renderAgents);
+    document.getElementById('refresh-agents-btn').addEventListener('click', loadAgents);
+});
+
+// ── Agents ─────────────────────────────────────────
+function loadAgents() {
+    setLoading('agents-loading', true);
+    document.getElementById('agents-list').innerHTML = '';
+    document.getElementById('agents-empty').classList.add('d-none');
+
+    fetch('/api/config-assessment/agents')
+        .then(r => r.json())
+        .then(data => {
+            setLoading('agents-loading', false);
+            if (data.error) { showError(data.error); return; }
+            allAgents = data.agents || [];
+            updateStatCards();
+            renderAgents();
+        })
+        .catch(e => { setLoading('agents-loading', false); showError(e.message); });
+}
+
+function updateStatCards() {
+    document.getElementById('stat-agents').textContent = allAgents.length;
+    document.getElementById('stat-active').textContent =
+        allAgents.filter(a => a.status === 'active').length;
+    document.getElementById('stat-disconnected').textContent =
+        allAgents.filter(a => a.status === 'disconnected').length;
+    document.getElementById('stat-never').textContent =
+        allAgents.filter(a => a.status === 'never_connected').length;
+}
+
+function filterAgents(status) {
+    activeStatusFilter = status;
+    document.querySelectorAll('[id^="tab-"]').forEach(b => b.classList.remove('active'));
+    const tabMap = { all: 'tab-all', active: 'tab-active',
+                     disconnected: 'tab-disconnected', never_connected: 'tab-never' };
+    const el = document.getElementById(tabMap[status]);
+    if (el) el.classList.add('active');
+    renderAgents();
+}
+
+function renderAgents() {
+    const search = document.getElementById('agent-search').value.toLowerCase();
+    let agents = allAgents;
+
+    if (activeStatusFilter !== 'all')
+        agents = agents.filter(a => a.status === activeStatusFilter);
+    if (search)
+        agents = agents.filter(a =>
+            a.name.toLowerCase().includes(search) ||
+            a.ip.toLowerCase().includes(search) ||
+            (a.os || '').toLowerCase().includes(search));
+
+    document.getElementById('agents-count-badge').textContent = agents.length;
+    const list = document.getElementById('agents-list');
+    list.innerHTML = '';
+
+    if (!agents.length) {
+        document.getElementById('agents-empty').classList.remove('d-none');
+        return;
+    }
+    document.getElementById('agents-empty').classList.add('d-none');
+
+    agents.forEach(agent => {
+        const item = document.createElement('a');
+        item.href = '#';
+        item.className = 'list-group-item list-group-item-action agent-row border-0 border-bottom border-secondary px-3 py-2'
+                       + (agent.id === currentAgentId ? ' selected' : '');
+        item.dataset.agentId = agent.id;
+        item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="overflow-hidden">
+                    <div class="fw-semibold text-light text-truncate" style="max-width:160px" title="${esc(agent.name)}">${esc(agent.name)}</div>
+                    <div class="small text-muted font-monospace">${esc(agent.ip)}</div>
+                </div>
+                <div class="text-end">
+                    <span class="badge badge-${agent.status} small">${agent.status}</span>
+                    <div class="small text-muted mt-1" style="font-size:10px">${esc(agent.group)}</div>
+                </div>
+            </div>
+            <div class="small text-muted text-truncate mt-1" style="font-size:11px">${esc(agent.os)}</div>`;
+
+        item.addEventListener('click', e => {
+            e.preventDefault();
+            document.querySelectorAll('.agent-row').forEach(r => r.classList.remove('selected'));
+            item.classList.add('selected');
+            openAgent(agent);
+        });
+        list.appendChild(item);
+    });
+}
+
+// ── Agent Detail ───────────────────────────────────
+function openAgent(agent) {
+    currentAgentId = agent.id;
+    currentPolicyId = null;
+    allChecks = [];
+
+    document.getElementById('select-placeholder').style.display = 'none';
+    document.getElementById('agent-detail-panel').style.display = 'block';
+    document.getElementById('checks-panel').style.display = 'none';
+
+    document.getElementById('detail-name').textContent = agent.name;
+    document.getElementById('detail-id').textContent = agent.id;
+    document.getElementById('detail-ip').textContent = agent.ip;
+    document.getElementById('detail-os').textContent = agent.os;
+    document.getElementById('detail-group').textContent = agent.group;
+
+    const statusEl = document.getElementById('detail-status');
+    statusEl.textContent = agent.status;
+    statusEl.className = 'badge badge-' + agent.status;
+
+    loadPolicies(agent.id);
+}
+
+// ── Policies ───────────────────────────────────────
+function loadPolicies(agentId) {
+    setLoading('policies-loading', true);
+    document.getElementById('policies-list').innerHTML = '';
+    document.getElementById('policies-empty').classList.add('d-none');
+
+    fetch(`/api/config-assessment/agent/${agentId}/policies`)
+        .then(r => r.json())
+        .then(data => {
+            setLoading('policies-loading', false);
+            if (data.error && !data.policies) { showError(data.error); return; }
+            const policies = data.policies || [];
+            document.getElementById('policies-count-badge').textContent = policies.length;
+
+            if (!policies.length) {
+                document.getElementById('policies-empty').classList.remove('d-none');
+                return;
+            }
+
+            const list = document.getElementById('policies-list');
+            policies.forEach(p => {
+                const pct = p.score || 0;
+                const color = pct >= 70 ? '#4ade80' : pct >= 40 ? '#f97316' : '#ff6b6b';
+                const col = document.createElement('div');
+                col.className = 'col-md-6';
+                col.innerHTML = `
+                    <div class="policy-card p-3" onclick="openPolicy('${esc(p.policy_id)}', '${esc(p.name)}')">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div class="fw-semibold text-light small" style="max-width:70%">${esc(p.name)}</div>
+                            <span class="fw-bold" style="color:${color};font-size:1.1rem">${pct}%</span>
+                        </div>
+                        <div class="small text-muted mb-2" style="font-size:11px;min-height:28px">${esc(p.description).slice(0,120)}${p.description && p.description.length>120?'…':''}</div>
+                        <div class="score-bar-wrap mb-2">
+                            <div class="score-bar-fill" style="width:${pct}%;background:${color}"></div>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <span class="badge badge-passed small"><i class="fas fa-check me-1"></i>${p.pass}</span>
+                            <span class="badge badge-failed small"><i class="fas fa-times me-1"></i>${p.fail}</span>
+                            <span class="badge badge-na small">N/A ${p.invalid}</span>
+                            <span class="badge bg-secondary small">${p.total_checks} total</span>
+                        </div>
+                        ${p.end_scan ? `<div class="small text-muted mt-1" style="font-size:10px">Last scan: ${fmtDate(p.end_scan)}</div>` : ''}
+                    </div>`;
+                list.appendChild(col);
+            });
+        })
+        .catch(e => { setLoading('policies-loading', false); showError(e.message); });
+}
+
+// ── Checks ─────────────────────────────────────────
+function openPolicy(policyId, policyName) {
+    currentPolicyId = policyId;
+    currentPolicyName = policyName;
+    activeResultFilter = 'all';
+    allChecks = [];
+
+    document.getElementById('checks-panel').style.display = 'block';
+    document.getElementById('checks-policy-name').textContent = policyName;
+    document.getElementById('checks-list').innerHTML = '';
+    document.getElementById('checks-empty').classList.add('d-none');
+    document.getElementById('checks-summary-badges').innerHTML = '';
+    document.getElementById('auditor-banner').classList.add('d-none');
+    document.getElementById('checks-search').value = '';
+
+    document.querySelectorAll('[id^="rf-"]').forEach(b => b.classList.remove('active'));
+    document.getElementById('rf-all').classList.add('active');
+
+    setLoading('checks-loading', true);
+
+    fetch(`/api/config-assessment/agent/${currentAgentId}/policy/${encodeURIComponent(policyId)}/checks?limit=2000`)
+        .then(r => r.json())
+        .then(data => {
+            setLoading('checks-loading', false);
+            if (data.error && !data.checks) { showError(data.error); return; }
+            allChecks = data.checks || [];
+            updateChecksSummary();
+            renderChecks();
+
+            document.getElementById('checks-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        })
+        .catch(e => { setLoading('checks-loading', false); showError(e.message); });
+}
+
+function updateChecksSummary() {
+    const counts = { passed: 0, failed: 0, 'not applicable': 0, error: 0 };
+    allChecks.forEach(c => {
+        const r = (c.result || 'not applicable').toLowerCase();
+        if (r in counts) counts[r]++;
+        else counts['not applicable']++;
+    });
+
+    document.getElementById('checks-summary-badges').innerHTML = `
+        <span class="badge badge-passed small cursor-pointer" onclick="applyResultFilter('passed')">✓ ${counts.passed} Passed</span>
+        <span class="badge badge-failed small cursor-pointer" onclick="applyResultFilter('failed')">✗ ${counts.failed} Failed</span>
+        <span class="badge badge-na small cursor-pointer" onclick="applyResultFilter('not applicable')">– ${counts['not applicable']} N/A</span>
+        ${counts.error ? `<span class="badge badge-error small cursor-pointer" onclick="applyResultFilter('error')">⚠ ${counts.error} Error</span>` : ''}
+    `;
+
+    const banner = document.getElementById('auditor-banner');
+    const bannerTxt = document.getElementById('auditor-banner-text');
+    if (counts.failed > 0) {
+        bannerTxt.textContent = `Auditor Alert: ${counts.failed} failed check${counts.failed > 1 ? 's' : ''} found — these represent misconfigurations and potential security loopholes requiring immediate review.`;
+        banner.classList.remove('d-none');
+    } else {
+        banner.classList.add('d-none');
+    }
+}
+
+function applyResultFilter(filter) {
+    activeResultFilter = filter;
+    document.querySelectorAll('[id^="rf-"]').forEach(b => b.classList.remove('active'));
+    const idMap = { all: 'rf-all', failed: 'rf-failed', passed: 'rf-passed', 'not applicable': 'rf-na' };
+    const el = document.getElementById(idMap[filter] || 'rf-all');
+    if (el) el.classList.add('active');
+    renderChecks();
+}
+
+function renderChecks() {
+    const search = (document.getElementById('checks-search').value || '').toLowerCase();
+    let checks = allChecks;
+
+    if (activeResultFilter !== 'all')
+        checks = checks.filter(c => (c.result || 'not applicable').toLowerCase() === activeResultFilter);
+    if (search)
+        checks = checks.filter(c =>
+            (c.title || '').toLowerCase().includes(search) ||
+            (c.description || '').toLowerCase().includes(search) ||
+            (c.rationale || '').toLowerCase().includes(search) ||
+            (c.remediation || '').toLowerCase().includes(search) ||
+            String(c.id).includes(search));
+
+    const list = document.getElementById('checks-list');
+    list.innerHTML = '';
+
+    if (!checks.length) {
+        document.getElementById('checks-empty').classList.remove('d-none');
+        return;
+    }
+    document.getElementById('checks-empty').classList.add('d-none');
+
+    // Sort: failed first, then error, passed, na
+    const order = { failed: 0, error: 1, passed: 2, 'not applicable': 3 };
+    checks = [...checks].sort((a, b) => {
+        const ra = (a.result || 'not applicable').toLowerCase();
+        const rb = (b.result || 'not applicable').toLowerCase();
+        return (order[ra] ?? 3) - (order[rb] ?? 3);
+    });
+
+    checks.forEach(c => {
+        const result = (c.result || 'not applicable').toLowerCase();
+        const rowCls = `check-row-${result === 'not applicable' ? 'na' : result === 'error' ? 'error' : result}`;
+        const badgeCls = result === 'passed' ? 'badge-passed' : result === 'failed' ? 'badge-failed'
+                       : result === 'error' ? 'badge-error' : 'badge-na';
+        const icon = result === 'passed' ? 'fa-check-circle text-success'
+                   : result === 'failed' ? 'fa-times-circle text-danger'
+                   : result === 'error'  ? 'fa-exclamation-triangle text-warning'
+                   : 'fa-minus-circle text-secondary';
+
+        const row = document.createElement('div');
+        row.className = `mb-1 rounded ${rowCls}`;
+        row.style.cssText = 'background:#13151e;padding:8px 12px;cursor:pointer;';
+        row.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <div class="d-flex align-items-start gap-2 flex-grow-1 overflow-hidden">
+                    <i class="fas ${icon} mt-1 flex-shrink-0"></i>
+                    <div class="overflow-hidden">
+                        <div class="small fw-semibold text-light text-truncate">${esc(c.title)}</div>
+                        ${c.compliance ? `<div class="small text-muted" style="font-size:10px">${esc(c.compliance.slice(0,80))}${c.compliance.length>80?'…':''}</div>` : ''}
+                    </div>
+                </div>
+                <div class="d-flex gap-2 align-items-center flex-shrink-0">
+                    <span class="badge ${badgeCls} small">${result.toUpperCase()}</span>
+                    ${result === 'failed' && c.remediation ? '<span class="badge bg-warning text-dark" style="font-size:9px">FIX AVAILABLE</span>' : ''}
+                </div>
+            </div>`;
+        row.addEventListener('click', () => openCheckModal(c));
+        list.appendChild(row);
+    });
+}
+
+// ── Check Detail Modal ─────────────────────────────
+function openCheckModal(c) {
+    const result = (c.result || 'not applicable').toLowerCase();
+    const headerColor = result === 'passed' ? 'linear-gradient(135deg,#0a2a15,#1a4a25)'
+                      : result === 'failed' ? 'linear-gradient(135deg,#4a1010,#6a1515)'
+                      : result === 'error'  ? 'linear-gradient(135deg,#3a2000,#5a3000)'
+                      : 'linear-gradient(135deg,#1a1a2a,#2a2a3a)';
+    const badgeCls = result === 'passed' ? 'badge-passed' : result === 'failed' ? 'badge-failed'
+                   : result === 'error' ? 'badge-error' : 'badge-na';
+
+    document.getElementById('check-modal-header').style.background = headerColor;
+    document.getElementById('check-modal-title').textContent = c.title || 'Check Detail';
+    document.getElementById('check-modal-id').textContent = `Check ID: ${c.id}`;
+
+    let body = `<div class="mb-3 d-flex align-items-center gap-2">
+        <span class="badge ${badgeCls} px-3 py-2">${result.toUpperCase()}</span>
+        ${c.reason ? `<span class="small text-muted">${esc(c.reason)}</span>` : ''}
+    </div>`;
+
+    if (c.description) body += modalSection('Description', c.description, 'fa-info-circle text-info');
+
+    if (result === 'failed') {
+        if (c.rationale)   body += modalSection('Why This Matters', c.rationale, 'fa-exclamation-triangle text-warning', '#3a2000');
+        if (c.remediation) body += modalSection('Recommended Remediation', c.remediation, 'fa-tools text-success', '#0a2a15');
+    } else {
+        if (c.rationale)   body += modalSection('Rationale', c.rationale, 'fa-book text-secondary');
+        if (c.remediation) body += modalSection('Remediation', c.remediation, 'fa-tools text-muted');
+    }
+
+    if (c.compliance) body += modalSection('Compliance Mapping', c.compliance, 'fa-balance-scale text-primary');
+    if (c.condition)  body += modalSection('Condition', c.condition, 'fa-code text-muted');
+    if (c.rules)      body += modalSection('Rules', c.rules, 'fa-list text-muted');
+
+    document.getElementById('check-modal-body').innerHTML = body;
+    new bootstrap.Modal(document.getElementById('check-detail-modal')).show();
+}
+
+function modalSection(title, content, icon, bg) {
+    const bgStyle = bg ? `background:${bg};` : 'background:#13151e;';
+    return `<div class="mb-3 rounded p-3" style="${bgStyle}border:1px solid rgba(255,255,255,.07)">
+        <div class="small fw-semibold text-muted mb-1"><i class="fas ${icon} me-2"></i>${title}</div>
+        <div class="small text-light" style="white-space:pre-wrap">${esc(content)}</div>
+    </div>`;
+}
+
+// ── Downloads ──────────────────────────────────────
+function downloadReport(format) {
+    if (!currentAgentId || !currentPolicyId) return;
+    const url = `/api/config-assessment/agent/${currentAgentId}/policy/${encodeURIComponent(currentPolicyId)}/download/${format}`;
+    window.open(url, '_blank');
+}
+
+// ── Helpers ────────────────────────────────────────
+function setLoading(id, show) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = show ? 'flex' : 'none';
+}
+
+function esc(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function fmtDate(str) {
+    if (!str) return '';
+    try { return new Date(str).toLocaleString(); }
+    catch { return str; }
+}
+
+function showError(msg) {
+    const banner = document.getElementById('wazuh-error-banner');
+    const detail = document.getElementById('wazuh-error-detail');
+    if (banner && detail) {
+        detail.textContent = msg;
+        banner.classList.remove('d-none');
+        banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        console.error(msg);
+    }
+    // Also hide any frozen spinners
+    ['agents-loading', 'policies-loading', 'checks-loading'].forEach(id => setLoading(id, false));
+}
+</script>
+{% endblock %}

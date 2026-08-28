@@ -1,0 +1,1610 @@
+{% extends "layout.html" %}
+
+{% block title %}DVR/NVR Auto-Config — REBIZ Sentinel X{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
+    <h2 class="mb-0">
+        <i class="fas fa-video text-primary me-2"></i>DVR/NVR AutoDeploy
+    </h2>
+    <div>
+        <button class="btn btn-outline-secondary btn-sm" onclick="showHistory()">
+            <i class="fas fa-history me-1"></i>Session History
+        </button>
+    </div>
+</div>
+
+<!-- Step Progress Bar -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2" id="step-indicators">
+            {% set steps = [
+                ('1', 'Connect', 'plug'),
+                ('2', 'Discover', 'magnifying-glass'),
+                ('3', 'Location', 'location-dot'),
+                ('4', 'Storage', 'hard-drive'),
+                ('5', 'Streams', 'camera'),
+                ('6', 'Recording', 'circle-dot'),
+                ('7', 'Holiday', 'calendar-days'),
+                ('8', 'Users', 'users'),
+                ('9', 'Validate', 'shield-check'),
+                ('10', 'Report', 'file-lines'),
+            ] %}
+            {% for num, label, icon in steps %}
+            <div class="step-indicator text-center" id="step-ind-{{ num }}" style="flex:1;min-width:60px;">
+                <div class="step-circle mx-auto mb-1" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #444;background:#1a1c23;font-size:.85em;font-weight:bold;">
+                    <i class="fas fa-{{ icon }} step-icon-{{ num }}" style="display:none;font-size:.9em;"></i>
+                    <span class="step-num-{{ num }}">{{ num }}</span>
+                </div>
+                <small class="d-none d-md-block" style="color:#888;font-size:.7em;">{{ label }}</small>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- STEP 1: Connect -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="step-1" class="wizard-step">
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-plug me-2 text-primary"></i><strong>Step 1 — Connection Details</strong>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-4">Enter the DVR/NVR connection details. Supports Hikvision, Platinum, and LTS devices.</p>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Device Name *</label>
+                    <input type="text" class="form-control" id="device_name" placeholder="e.g. Client Office DVR">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Public IP Address *</label>
+                    <input type="text" class="form-control" id="device_ip" placeholder="e.g. 203.0.113.50">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">HTTP/HTTPS Port *</label>
+                    <input type="number" class="form-control" id="device_port" value="80">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="use_https">
+                        <label class="form-check-label" for="use_https">Use HTTPS</label>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Admin Username *</label>
+                    <input type="text" class="form-control" id="device_user" value="admin">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Admin Password *</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="device_pass">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePass('device_pass')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button class="btn btn-primary" onclick="step1Connect()">
+                    <i class="fas fa-plug me-2"></i>Connect & Authenticate
+                </button>
+            </div>
+            <div id="step1-result" class="mt-3"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- STEP 2: Device Discovery -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="step-2" class="wizard-step d-none">
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-magnifying-glass me-2 text-primary"></i><strong>Step 2 — Device Discovery</strong>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">Retrieving device information from the DVR/NVR…</p>
+            <div id="discovery-spinner" class="text-center py-4">
+                <div class="spinner-border text-primary"></div>
+                <p class="mt-2 text-muted">Querying device…</p>
+            </div>
+            <div id="discovery-results" class="d-none">
+                <div class="row g-3" id="device-info-grid"></div>
+                <div class="mt-4">
+                    <button class="btn btn-primary" onclick="goToStep(3)">
+                        <i class="fas fa-arrow-right me-2"></i>Continue to Location Setup
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- STEP 3: Location / Time / NTP -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="step-3" class="wizard-step d-none">
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-location-dot me-2 text-primary"></i><strong>Step 3 — Location & Time Configuration</strong>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-4">Enter the installation location. Time zone, NTP, and DST will be configured automatically.</p>
+            <div class="row g-3">
+                <div class="col-md-5">
+                    <label class="form-label">City *</label>
+                    <input type="text" class="form-control" id="city" placeholder="e.g. Houston">
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">State *</label>
+                    <select class="form-select" id="state">
+                        <option value="">— Select State —</option>
+                        {% set us_states = ['Alabama','Alaska','Arizona','Arkansas','California','Colorado',
+                            'Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho','Illinois',
+                            'Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland',
+                            'Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana',
+                            'Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York',
+                            'North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania',
+                            'Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah',
+                            'Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming',
+                            'District of Columbia'] %}
+                        {% for s in us_states %}
+                        <option value="{{ s }}">{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button class="btn btn-primary" onclick="step3ConfigureTime()">
+                    <i class="fas fa-clock me-2"></i>Configure Time & NTP
+                </button>
+            </div>
+            <div id="step3-result" class="mt-3"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- STEP 4: Storage -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="step-4" class="wizard-step d-none">
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-hard-drive me-2 text-primary"></i><strong>Step 4 — Storage Detection</strong>
+        </div>
+        <div class="card-body">
+            <div id="storage-spinner" class="text-center py-4">
+                <div class="spinner-border text-primary"></div>
+                <p class="mt-2 text-muted">Scanning storage devices…</p>
+            </div>
+            <div id="storage-results" class="d-none">
+                <div id="hdd-table-wrap"></div>
+                <div class="mt-4" id="storage-actions"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- STEP 5: Camera Streams -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="step-5" class="wizard-step d-none">
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-camera me-2 text-primary"></i><strong>Step 5 — Camera Stream Configuration</strong>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">Applying standard stream settings to all active channels.</p>
+            <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                    <div class="card border-secondary h-100"><div class="card-body">
+                        <h6 class="text-primary"><i class="fas fa-film me-1"></i>Main Stream</h6>
+                        <small class="text-muted">Resolution: 1920×1080 &nbsp;|&nbsp; Codec: H.264<br>
+                        Bitrate: VBR, 320 Kbps max &nbsp;|&nbsp; FPS: 8</small>
+                    </div></div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-secondary h-100"><div class="card-body">
+                        <h6 class="text-primary"><i class="fas fa-film me-1"></i>Sub Stream</h6>
+                        <small class="text-muted">Resolution: 960×480 &nbsp;|&nbsp; Codec: H.264<br>
+                        Bitrate: VBR, 320 Kbps max &nbsp;|&nbsp; FPS: 8 &nbsp;|&nbsp; Channel Zero: Disabled</small>
+                    </div></div>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="step5ConfigureStreams()">
+                <i class="fas fa-play me-2"></i>Apply Stream Settings
+            </button>
+            <div id="step5-result" class="mt-3"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- STEP 6: Recording Schedule -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="step-6" class="wizard-step d-none">
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-circle-dot me-2 text-primary"></i><strong>Step 6 — Recording Schedule</strong>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">The following schedule will be applied to <strong>all channels</strong>.</p>
+            <table class="table table-sm table-bordered text-center mb-4" style="max-width:500px;">
+                <thead class="table-dark">
+                    <tr><th>Time</th><th>Recording Mode</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>00:00 – 08:00</td><td><span class="badge bg-warning">Motion</span></td></tr>
+                    <tr><td>08:00 – 22:00</td><td><span class="badge bg-success">Continuous</span></td></tr>
+                    <tr><td>22:00 – 24:00</td><td><span class="badge bg-warning">Motion</span></td></tr>
+                </tbody>
+            </table>
+            <button class="btn btn-primary" onclick="step6ConfigureRecording()">
+                <i class="fas fa-calendar-check me-2"></i>Apply Recording Schedule
+            </button>
+            <div id="step6-result" class="mt-3"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- STEP 7: Holiday -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="step-7" class="wizard-step d-none">
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-calendar-days me-2 text-primary"></i><strong>Step 7 — Holiday Schedule</strong>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">The following holiday will be created automatically.</p>
+            <table class="table table-sm mb-4" style="max-width:500px;">
+                <tr><th>Holiday Name</th><td>Thanksgiving &amp; Black Friday</td></tr>
+                <tr><th>Type</th><td>By Week</td></tr>
+                <tr><th>Start</th><td>4th Monday of November</td></tr>
+                <tr><th>End</th><td>1st Monday of December</td></tr>
+                <tr><th>Recording Mode</th><td><span class="badge bg-success">Continuous</span></td></tr>
+            </table>
+            <button class="btn btn-primary" onclick="step7ConfigureHoliday()">
+                <i class="fas fa-calendar-plus me-2"></i>Create Holiday Schedule
+            </button>
+            <div id="step7-result" class="mt-3"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- STEP 8: Users -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="step-8" class="wizard-step d-none">
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-users me-2 text-primary"></i><strong>Step 8 &amp; 9 — User Creation &amp; Permissions</strong>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">Enter the client initials to generate account credentials.</p>
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <label class="form-label">Client Initials *</label>
+                    <input type="text" class="form-control text-uppercase" id="client_initials"
+                           maxlength="5" placeholder="e.g. YW" oninput="previewPasswords()">
+                    <small class="text-muted">Used to generate passwords</small>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label">User Selection *</label>
+                    <div class="d-flex gap-4 pt-1">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="select-user-cms" checked>
+                            <label class="form-check-label" for="select-user-cms">
+                                CMS Account <span class="text-muted small">(Viewer)</span>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="select-user-dlt" checked>
+                            <label class="form-check-label" for="select-user-dlt">
+                                DLT Account <span class="text-muted small">(Operator)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <small class="text-muted">Choose which standard accounts to create on this device</small>
+                </div>
+            </div>
+            <div class="card border-secondary mb-4">
+                <div class="card-body">
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="select-user-manager"
+                               onchange="toggleManagerFields(); previewPasswords();">
+                        <label class="form-check-label" for="select-user-manager">
+                            <i class="fas fa-user-tie me-1"></i>Create Manager Account
+                            <span class="text-muted small">(optional — same permissions as CMS)</span>
+                        </label>
+                    </div>
+                    <div id="manager-fields" class="row g-3 d-none">
+                        <div class="col-md-6">
+                            <label class="form-label">Manager Username</label>
+                            <input type="text" class="form-control" id="manager_username"
+                                   placeholder="manager" oninput="previewPasswords()">
+                            <small class="text-muted">Defaults to "manager" if left blank</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Manager Password</label>
+                            <input type="text" class="form-control" id="manager_password"
+                                   placeholder="Auto-generated from client initials" oninput="previewPasswords()">
+                            <small class="text-muted">Leave blank to auto-generate (client-initials standard)</small>
+                        </div>
+                    </div>
+                    <small class="text-muted">Leave unchecked to skip manager account configuration for this device — no credentials means no manager account is created.</small>
+                </div>
+            </div>
+            <div id="password-preview" class="d-none mb-4">
+                <h6 class="text-muted mb-2">Generated Credentials Preview</h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="card border-primary">
+                            <div class="card-body">
+                                <h6><i class="fas fa-user-tie me-1 text-primary"></i>CMS Account</h6>
+                                <p class="mb-1"><strong>Username:</strong> cms</p>
+                                <p class="mb-1"><strong>Password:</strong> <code id="cms-pass-preview"></code></p>
+                                <p class="mb-0 small text-muted">Permissions: Log Search, Playback, Live View, Video Export</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-warning">
+                            <div class="card-body">
+                                <h6><i class="fas fa-user-shield me-1 text-warning"></i>DLT Account</h6>
+                                <p class="mb-1"><strong>Username:</strong> dlt</p>
+                                <p class="mb-1"><strong>Password:</strong> <code id="dlt-pass-preview"></code></p>
+                                <p class="mb-0 small text-muted">Permissions: Parameter Settings, Shutdown/Reboot, Live View, Playback</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-info" id="manager-preview-card">
+                            <div class="card-body">
+                                <h6><i class="fas fa-user-tie me-1 text-info"></i>Manager Account</h6>
+                                <p class="mb-1"><strong>Username:</strong> <code id="manager-user-preview"></code></p>
+                                <p class="mb-1"><strong>Password:</strong> <code id="manager-pass-preview"></code></p>
+                                <p class="mb-0 small text-muted">Permissions: same as CMS account</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <label class="form-label">
+                        <i class="fas fa-shield-halved me-1 text-warning"></i>Admin Verification Password
+                        <span class="badge bg-secondary ms-1">Optional</span>
+                    </label>
+                    <input type="password" class="form-control" id="admin_verification_password"
+                           placeholder="Leave blank if not required by this device"
+                           autocomplete="new-password">
+                    <small class="text-muted">
+                        Required by some Hikvision / OEM firmware variants that enforce Double Verification before creating user accounts.
+                        Provide the admin password a second time here if your device rejects user creation with a verification error.
+                    </small>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="step8ConfigureUsers()">
+                <i class="fas fa-user-plus me-2"></i>Create Users &amp; Apply Permissions
+            </button>
+            <div id="step8-result" class="mt-3"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- STEP 9: Validation -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="step-9" class="wizard-step d-none">
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-shield-halved me-2 text-primary"></i><strong>Step 9 — Validation</strong>
+        </div>
+        <div class="card-body">
+            <div id="validation-spinner" class="text-center py-4">
+                <div class="spinner-border text-primary"></div>
+                <p class="mt-2 text-muted">Running validation checks…</p>
+            </div>
+            <div id="validation-results" class="d-none">
+                <div id="validation-summary" class="mb-3"></div>
+                <table class="table table-sm" id="validation-table">
+                    <thead class="table-dark">
+                        <tr><th width="70">Status</th><th width="220">Check</th><th>Detail</th></tr>
+                    </thead>
+                    <tbody id="validation-tbody"></tbody>
+                </table>
+                <div class="mt-4">
+                    <button class="btn btn-primary" onclick="goToStep(10)">
+                        <i class="fas fa-file-lines me-2"></i>Generate Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- STEP 10: Report -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="step-10" class="wizard-step d-none">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-file-lines me-2 text-primary"></i><strong>Step 10 — Configuration Report</strong></span>
+            <span id="report-overall-badge"></span>
+        </div>
+        <div class="card-body">
+
+            <!-- Device header -->
+            <div id="report-device-header" class="mb-4"></div>
+
+            <!-- Score summary -->
+            <div id="report-score-row" class="row g-3 mb-4"></div>
+
+            <!-- Configuration steps summary -->
+            <h6 class="text-uppercase text-muted mb-2" style="letter-spacing:.05em;font-size:.75rem;">
+                <i class="fas fa-list-check me-1"></i>Configuration Steps
+            </h6>
+            <div id="report-steps-table" class="mb-4"></div>
+
+            <!-- Validation results -->
+            <h6 class="text-uppercase text-muted mb-2" style="letter-spacing:.05em;font-size:.75rem;">
+                <i class="fas fa-shield-halved me-1"></i>Validation Checks
+            </h6>
+            <div id="report-validation-table" class="mb-4"></div>
+
+            <!-- User accounts -->
+            <div id="report-accounts" class="mb-4"></div>
+
+            <hr class="my-3">
+
+            <!-- Download + Email -->
+            <div class="row g-3 align-items-start">
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-2">Download Report</h6>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-sm btn-danger" onclick="downloadReport('pdf')">
+                            <i class="fas fa-file-pdf me-1"></i>PDF
+                        </button>
+                        <button class="btn btn-sm btn-success" onclick="downloadReport('excel')">
+                            <i class="fas fa-file-excel me-1"></i>Excel
+                        </button>
+                        <button class="btn btn-sm btn-info" onclick="downloadReport('json')">
+                            <i class="fas fa-file-code me-1"></i>JSON
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-2">Email Report</h6>
+                    <div class="input-group input-group-sm mb-2">
+                        <input type="text" class="form-control" id="email_recipients"
+                               placeholder="admin@company.com, tech@company.com">
+                    </div>
+                    <div class="d-flex gap-3 mb-2">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="fmt_pdf" checked>
+                            <label class="form-check-label" for="fmt_pdf">PDF</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="fmt_excel">
+                            <label class="form-check-label" for="fmt_excel">Excel</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="fmt_json">
+                            <label class="form-check-label" for="fmt_json">JSON</label>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="sendEmailReport()">
+                        <i class="fas fa-paper-plane me-1"></i>Send
+                    </button>
+                    <div id="email-result" class="mt-2"></div>
+                </div>
+            </div>
+
+            <hr class="my-3">
+            <button class="btn btn-outline-secondary btn-sm" onclick="startNewSession()">
+                <i class="fas fa-plus me-2"></i>Configure Another Device
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- History Modal -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-history me-2"></i>Configuration Session History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="history-loading" class="text-center py-4">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="text-muted mt-2 small">Loading sessions…</p>
+                </div>
+                <div id="history-table-wrap" class="d-none">
+                    <table class="table table-hover table-sm align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Device Name</th>
+                                <th>IP Address</th>
+                                <th>Checks</th>
+                                <th>Overall</th>
+                                <th>Technician</th>
+                                <th>Date / Time</th>
+                                <th class="text-center">Audit Log</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- Session Detail (Audit Log) Modal -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="sessionDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-clipboard-list me-2 text-primary"></i>Session Audit Log</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="session-detail-body">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- HDD Format Confirm Modal -->
+<div class="modal fade" id="formatModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="fas fa-triangle-exclamation me-2"></i>Initialize Hard Drive</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>An <strong>uninitialized hard drive</strong> has been detected.</p>
+                <p><strong>HDD ID:</strong> <span id="format-hdd-id"></span></p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    All data on this drive will be erased. This action cannot be undone.
+                </div>
+                <p>Would you like to initialize and format it?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="confirmFormat()">
+                    <i class="fas fa-hard-drive me-2"></i>Initialize &amp; Format
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let sessionId = null;
+let currentStep = 1;
+let pendingFormatHddId = null;
+const STATE_TIMEZONE = {{ state_timezone_json|safe }};
+const TZ_TO_HIKVISION = {{ tz_to_hikvision_json|safe }};
+
+// Given the device's current /System/time timeZone string (or an IANA name),
+// find a matching US state and pre-select it in Step 3 so the tech doesn't
+// have to guess — this is the "Time Zone auto-select" behavior.
+function autoSelectStateFromDeviceTimezone(currentTimezone) {
+    if (!currentTimezone || currentTimezone === 'N/A') return;
+    const stateSelect = document.getElementById('state');
+    if (!stateSelect || stateSelect.value) return; // don't clobber a manual choice
+
+    let matchedIana = null;
+    // Direct IANA match (some firmware reports IANA names directly).
+    for (const [state, iana] of Object.entries(STATE_TIMEZONE)) {
+        if (iana === currentTimezone) { matchedIana = iana; break; }
+    }
+    // POSIX/Hikvision string match (e.g. "EST5EDT,M3.2.0,M11.1.0").
+    if (!matchedIana) {
+        for (const [iana, hikStr] of Object.entries(TZ_TO_HIKVISION)) {
+            if (hikStr === currentTimezone) { matchedIana = iana; break; }
+        }
+    }
+    // Loose prefix match as a last resort (e.g. device drops the DST suffix).
+    if (!matchedIana) {
+        const prefix = currentTimezone.split(',')[0];
+        for (const [iana, hikStr] of Object.entries(TZ_TO_HIKVISION)) {
+            if (hikStr.split(',')[0] === prefix) { matchedIana = iana; break; }
+        }
+    }
+    if (!matchedIana) return;
+
+    const state = Object.keys(STATE_TIMEZONE).find(s => STATE_TIMEZONE[s] === matchedIana);
+    if (state) {
+        stateSelect.value = state;
+        showAlert('step3-result', 'info',
+            `Time zone auto-selected as <strong>${state}</strong> based on the device's current setting (${currentTimezone}). Change it if incorrect.`);
+    }
+}
+
+// ── Utilities ──────────────────────────────────────────────
+
+function showAlert(container, type, msg) {
+    const icons = {success:'circle-check', danger:'circle-xmark', warning:'triangle-exclamation', info:'circle-info'};
+    document.getElementById(container).innerHTML = `
+      <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        <i class="fas fa-${icons[type]||'info'} me-2"></i>${msg}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>`;
+}
+
+function showSpinner(container, msg='Processing…') {
+    document.getElementById(container).innerHTML = `
+      <div class="d-flex align-items-center gap-2 text-muted">
+        <div class="spinner-border spinner-border-sm text-primary"></div> ${msg}
+      </div>`;
+}
+
+function togglePass(id) {
+    const el = document.getElementById(id);
+    el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+function infoCard(label, value) {
+    return `<div class="col-md-4 col-6">
+      <div class="card border-secondary h-100">
+        <div class="card-body py-2 px-3">
+          <small class="text-muted d-block">${label}</small>
+          <strong>${value || 'N/A'}</strong>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Step indicators ────────────────────────────────────────
+
+function setStepDone(n) {
+    const circle = document.querySelector(`#step-ind-${n} .step-circle`);
+    circle.style.borderColor = '#198754';
+    circle.style.background = '#198754';
+    circle.style.color = '#fff';
+    document.querySelector(`.step-num-${n}`).style.display = 'none';
+    const icon = document.querySelector(`.step-icon-${n}`);
+    if (icon) icon.style.display = 'inline';
+}
+
+function setStepActive(n) {
+    const circle = document.querySelector(`#step-ind-${n} .step-circle`);
+    circle.style.borderColor = 'var(--primary-glow, #0d6efd)';
+    circle.style.color = 'var(--primary-glow, #0d6efd)';
+}
+
+function goToStep(n) {
+    // Hide all steps
+    document.querySelectorAll('.wizard-step').forEach(el => el.classList.add('d-none'));
+    document.getElementById(`step-${n}`).classList.remove('d-none');
+    setStepActive(n);
+    currentStep = n;
+    window.scrollTo({top: 0, behavior: 'smooth'});
+
+    // Auto-trigger actions for discovery, storage, validation
+    if (n === 2) step2Discover();
+    if (n === 4) step4Storage();
+    if (n === 9) step9Validate();
+    if (n === 10) buildReportSummary();
+}
+
+// ── STEP 1: Connect ─────────────────────────────────────────
+
+async function step1Connect() {
+    const device_name = document.getElementById('device_name').value.trim();
+    const ip = document.getElementById('device_ip').value.trim();
+    const port = document.getElementById('device_port').value.trim();
+    const username = document.getElementById('device_user').value.trim();
+    const password = document.getElementById('device_pass').value;
+    const use_https = document.getElementById('use_https').checked;
+
+    if (!device_name || !ip || !port || !username || !password) {
+        showAlert('step1-result', 'warning', 'Please fill in all required fields.');
+        return;
+    }
+    showSpinner('step1-result', 'Connecting to device…');
+
+    try {
+        const res = await fetch('/api/dvr/connect', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({device_name, ip, port: parseInt(port), username, password, use_https}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            sessionId = data.session_id;
+            showAlert('step1-result', 'success', `✅ Connected to <strong>${device_name}</strong> successfully.`);
+            setStepDone(1);
+            setTimeout(() => goToStep(2), 800);
+        } else {
+            showAlert('step1-result', 'danger', data.error || 'Connection failed.');
+        }
+    } catch (e) {
+        showAlert('step1-result', 'danger', 'Network error: ' + e.message);
+    }
+}
+
+// ── STEP 2: Discover ────────────────────────────────────────
+
+async function step2Discover() {
+    document.getElementById('discovery-spinner').classList.remove('d-none');
+    document.getElementById('discovery-results').classList.add('d-none');
+
+    try {
+        const res = await fetch('/api/dvr/discover', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: sessionId}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            const info = data.device_info;
+            const grid = document.getElementById('device-info-grid');
+            grid.innerHTML = [
+                infoCard('Manufacturer', info.manufacturer),
+                infoCard('Model', info.model),
+                infoCard('Device Type', info.device_type),
+                infoCard('Serial Number', info.serial_number),
+                infoCard('Firmware Version', info.firmware_version),
+                infoCard('Total Channels', info.total_channels),
+                infoCard('Active Channels', info.active_channels),
+                infoCard('MAC Address', info.mac_address),
+                infoCard('Current Timezone', info.current_timezone),
+                infoCard('Current Date/Time', info.current_datetime),
+            ].join('');
+            document.getElementById('discovery-spinner').classList.add('d-none');
+            document.getElementById('discovery-results').classList.remove('d-none');
+            setStepDone(2);
+            autoSelectStateFromDeviceTimezone(info.current_timezone);
+        } else {
+            document.getElementById('discovery-spinner').innerHTML =
+                `<div class="alert alert-danger"><i class="fas fa-circle-xmark me-2"></i>${data.error}</div>`;
+        }
+    } catch (e) {
+        document.getElementById('discovery-spinner').innerHTML =
+            `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+// ── STEP 3: Time / NTP ──────────────────────────────────────
+
+async function step3ConfigureTime() {
+    const city = document.getElementById('city').value.trim();
+    const state = document.getElementById('state').value;
+    if (!city || !state) {
+        showAlert('step3-result', 'warning', 'Please enter city and select state.');
+        return;
+    }
+    showSpinner('step3-result', 'Configuring time zone and NTP…');
+
+    try {
+        const res = await fetch('/api/dvr/configure-time', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: sessionId, city, state}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            const cfg = data.time_config;
+            document.getElementById('step3-result').innerHTML = `
+              <div class="alert alert-success">
+                <i class="fas fa-circle-check me-2"></i>
+                <strong>Time configured successfully.</strong><br>
+                <small>
+                  Timezone: <strong>${cfg.iana_timezone}</strong> &nbsp;|&nbsp;
+                  NTP: <strong>${cfg.ntp_server}</strong> (interval: ${cfg.ntp_interval} min) &nbsp;|&nbsp;
+                  DST: <strong>${cfg.dst_enabled ? 'Enabled' : 'Not applicable'}</strong>
+                </small>
+              </div>`;
+            setStepDone(3);
+            setTimeout(() => goToStep(4), 1000);
+        } else {
+            showAlert('step3-result', 'danger', data.error);
+        }
+    } catch (e) {
+        showAlert('step3-result', 'danger', e.message);
+    }
+}
+
+// ── STEP 4: Storage ─────────────────────────────────────────
+
+async function step4Storage() {
+    document.getElementById('storage-spinner').classList.remove('d-none');
+    document.getElementById('storage-results').classList.add('d-none');
+
+    try {
+        const res = await fetch('/api/dvr/storage', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: sessionId}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            renderHddTable(data.hdds);
+            document.getElementById('storage-spinner').classList.add('d-none');
+            document.getElementById('storage-results').classList.remove('d-none');
+
+            // Check for uninitialized HDDs
+            const uninitialized = data.hdds.filter(h =>
+                !['ok','normal','active'].includes((h.status||'').toLowerCase()));
+
+            if (uninitialized.length > 0) {
+                pendingFormatHddId = uninitialized[0].id;
+                document.getElementById('format-hdd-id').textContent = `HDD ${pendingFormatHddId}`;
+                new bootstrap.Modal(document.getElementById('formatModal')).show();
+            } else {
+                renderStorageActions(false);
+                setStepDone(4);
+            }
+        } else {
+            document.getElementById('storage-spinner').innerHTML =
+                `<div class="alert alert-danger"><i class="fas fa-circle-xmark me-2"></i>${data.error}</div>`;
+        }
+    } catch (e) {
+        document.getElementById('storage-spinner').innerHTML =
+            `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+function renderHddTable(hdds) {
+    const statusBadge = s => {
+        const sl = (s||'').toLowerCase();
+        const cls = ['ok','normal','active'].includes(sl) ? 'success' : 'danger';
+        return `<span class="badge bg-${cls}">${s}</span>`;
+    };
+    const rows = hdds.map(h => `<tr>
+        <td>${h.id}</td><td>${h.name}</td>
+        <td>${h.capacity ? h.capacity+' MB' : 'N/A'}</td>
+        <td>${statusBadge(h.status)}</td>
+        <td>${h.property || 'N/A'}</td>
+        <td>${h.free_space ? h.free_space+' MB' : 'N/A'}</td>
+    </tr>`).join('');
+    document.getElementById('hdd-table-wrap').innerHTML = `
+      <table class="table table-sm">
+        <thead class="table-dark"><tr><th>ID</th><th>Name</th><th>Capacity</th><th>Status</th><th>Property</th><th>Free Space</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+}
+
+function renderStorageActions(formatted) {
+    document.getElementById('storage-actions').innerHTML = `
+      <div class="alert alert-success">
+        <i class="fas fa-circle-check me-2"></i>
+        ${formatted ? 'HDD initialized and formatted successfully.' : 'All storage devices are healthy.'}
+      </div>
+      <button class="btn btn-primary" onclick="goToStep(5)">
+        <i class="fas fa-arrow-right me-2"></i>Continue to Stream Configuration
+      </button>`;
+}
+
+async function confirmFormat() {
+    bootstrap.Modal.getInstance(document.getElementById('formatModal')).hide();
+    const wrap = document.getElementById('storage-actions');
+    wrap.innerHTML = `<div class="d-flex align-items-center gap-2 text-muted">
+      <div class="spinner-border spinner-border-sm text-warning"></div> Formatting HDD ${pendingFormatHddId}…</div>`;
+    document.getElementById('storage-results').classList.remove('d-none');
+    document.getElementById('storage-spinner').classList.add('d-none');
+
+    try {
+        const res = await fetch('/api/dvr/format-hdd', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: sessionId, hdd_id: pendingFormatHddId}),
+        });
+        const data = await res.json();
+        if (data.success && data.hdds) renderHddTable(data.hdds);
+        renderStorageActions(true);
+        setStepDone(4);
+    } catch (e) {
+        wrap.innerHTML = `<div class="alert alert-danger">Format failed: ${e.message}</div>`;
+    }
+}
+
+// ── STEP 5: Streams ─────────────────────────────────────────
+
+async function step5ConfigureStreams() {
+    showSpinner('step5-result', 'Applying stream settings to all channels…');
+    try {
+        const res = await fetch('/api/dvr/configure-streams', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: sessionId}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            const rows = data.channels.map(c => {
+                const subNote = c.sub_note
+                    ? `<br><small class="text-warning"><i class="fas fa-circle-info me-1"></i>${c.sub_note}</small>`
+                    : '';
+                const resLabel = c.sub_resolution && c.sub_resolution !== 'N/A'
+                    ? ` <small class="text-muted">(${c.sub_resolution})</small>` : '';
+                return `<tr>
+                  <td>Ch ${c.channel}</td>
+                  <td>${badge(c.main_stream)}</td>
+                  <td>${badge(c.sub_stream)}${resLabel}${subNote}</td>
+                </tr>`;
+            }).join('');
+            document.getElementById('step5-result').innerHTML = `
+              <div class="alert alert-success"><i class="fas fa-circle-check me-2"></i>Stream settings applied to all channels.</div>
+              <table class="table table-sm" style="max-width:520px;">
+                <thead class="table-dark"><tr><th>Channel</th><th>Main Stream</th><th>Sub Stream</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+              <button class="btn btn-primary mt-2" onclick="goToStep(6)">
+                <i class="fas fa-arrow-right me-2"></i>Continue
+              </button>`;
+            setStepDone(5);
+        } else {
+            showAlert('step5-result', 'danger', data.error);
+        }
+    } catch (e) {
+        showAlert('step5-result', 'danger', e.message);
+    }
+}
+
+// ── STEP 6: Recording ───────────────────────────────────────
+
+async function step6ConfigureRecording() {
+    showSpinner('step6-result', 'Applying recording schedule…');
+    try {
+        const res = await fetch('/api/dvr/configure-recording', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: sessionId}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('step6-result').innerHTML = `
+              <div class="alert alert-success"><i class="fas fa-circle-check me-2"></i>
+                Recording schedule applied to ${data.channels.length} channels.</div>
+              <button class="btn btn-primary mt-2" onclick="goToStep(7)">
+                <i class="fas fa-arrow-right me-2"></i>Continue
+              </button>`;
+            setStepDone(6);
+        } else {
+            showAlert('step6-result', 'danger', data.error);
+        }
+    } catch (e) {
+        showAlert('step6-result', 'danger', e.message);
+    }
+}
+
+// ── STEP 7: Holiday ─────────────────────────────────────────
+
+async function step7ConfigureHoliday() {
+    showSpinner('step7-result', 'Creating holiday schedule…');
+    try {
+        const res = await fetch('/api/dvr/configure-holiday', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: sessionId}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            const icon = data.holiday.status === 'configured' ? '✅' : '⚠';
+            document.getElementById('step7-result').innerHTML = `
+              <div class="alert alert-${data.holiday.status === 'configured' ? 'success' : 'warning'}">
+                ${icon} Holiday schedule ${data.holiday.status === 'configured' ? 'created' : 'applied (verify on device)'}.
+              </div>
+              <button class="btn btn-primary mt-2" onclick="goToStep(8)">
+                <i class="fas fa-arrow-right me-2"></i>Continue
+              </button>`;
+            setStepDone(7);
+        } else {
+            showAlert('step7-result', 'danger', data.error);
+        }
+    } catch (e) {
+        showAlert('step7-result', 'danger', e.message);
+    }
+}
+
+// ── STEP 8: Users ───────────────────────────────────────────
+
+function toggleManagerFields() {
+    const on = document.getElementById('select-user-manager').checked;
+    document.getElementById('manager-fields').classList.toggle('d-none', !on);
+}
+
+function previewPasswords() {
+    const initials = document.getElementById('client_initials').value.toUpperCase().trim();
+    document.getElementById('client_initials').value = initials;
+    if (initials) {
+        document.getElementById('cms-pass-preview').textContent = `${initials}_cam12`;
+        document.getElementById('dlt-pass-preview').textContent = `${initials}9722IDT!`;
+        document.getElementById('password-preview').classList.remove('d-none');
+    } else {
+        document.getElementById('password-preview').classList.add('d-none');
+    }
+    const managerOn = document.getElementById('select-user-manager').checked;
+    const mgrUserInput = document.getElementById('manager_username').value.trim();
+    const mgrPassInput = document.getElementById('manager_password').value.trim();
+    document.getElementById('manager-preview-card').classList.toggle('d-none', !managerOn);
+    if (managerOn) {
+        document.getElementById('manager-user-preview').textContent = mgrUserInput || 'manager';
+        document.getElementById('manager-pass-preview').textContent = mgrPassInput || (initials ? `${initials}man_12` : '(enter client initials)');
+    }
+}
+
+async function step8ConfigureUsers() {
+    const initials = document.getElementById('client_initials').value.trim().toUpperCase();
+    if (!initials) {
+        showAlert('step8-result', 'warning', 'Please enter client initials.');
+        return;
+    }
+    const selectedUsers = [];
+    if (document.getElementById('select-user-cms').checked) selectedUsers.push('cms');
+    if (document.getElementById('select-user-dlt').checked) selectedUsers.push('dlt');
+    if (selectedUsers.length === 0) {
+        showAlert('step8-result', 'warning', 'Select at least one account to create.');
+        return;
+    }
+    const createManager = document.getElementById('select-user-manager').checked;
+    const managerUsername = document.getElementById('manager_username').value.trim();
+    const managerPassword = document.getElementById('manager_password').value.trim();
+    showSpinner('step8-result', 'Creating users and applying permissions…');
+    try {
+        const res = await fetch('/api/dvr/configure-users', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                session_id: sessionId, client_initials: initials, selected_users: selectedUsers,
+                create_manager: createManager, manager_username: managerUsername, manager_password: managerPassword,
+                admin_verification_password: document.getElementById('admin_verification_password').value,
+            }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            const rows = data.users.map(u => `<tr>
+              <td><strong>${u.username}</strong></td>
+              <td><code>${u.password || 'N/A'}</code></td>
+              <td><small>${u.permissions || u.role || ''}</small></td>
+              <td>${badge(u.status)}</td>
+            </tr>`).join('');
+            document.getElementById('step8-result').innerHTML = `
+              <div class="alert alert-success"><i class="fas fa-circle-check me-2"></i>
+                User accounts created and permissions applied.</div>
+              <table class="table table-sm">
+                <thead class="table-dark"><tr><th>Username</th><th>Password</th><th>Permissions</th><th>Status</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+              <button class="btn btn-primary mt-2" onclick="goToStep(9)">
+                <i class="fas fa-arrow-right me-2"></i>Run Validation
+              </button>`;
+            setStepDone(8);
+        } else {
+            showAlert('step8-result', 'danger', data.error);
+        }
+    } catch (e) {
+        showAlert('step8-result', 'danger', e.message);
+    }
+}
+
+// ── STEP 9: Validation ──────────────────────────────────────
+
+async function step9Validate() {
+    document.getElementById('validation-spinner').classList.remove('d-none');
+    document.getElementById('validation-results').classList.add('d-none');
+
+    try {
+        const res = await fetch('/api/dvr/validate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: sessionId}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            const s = data.summary;
+            const overallColor = s.overall === 'PASS' ? 'success' : (s.overall === 'WARNING' ? 'warning' : 'danger');
+            document.getElementById('validation-summary').innerHTML = `
+              <div class="d-flex gap-3 align-items-center flex-wrap">
+                <span class="badge bg-${overallColor} fs-6 px-3 py-2">Overall: ${s.overall}</span>
+                <span class="badge bg-success">✅ ${s.passed} Passed</span>
+                <span class="badge bg-warning">⚠ ${s.warned} Warnings</span>
+                <span class="badge bg-danger">❌ ${s.failed} Failed</span>
+              </div>`;
+
+            const rows = data.checks.map(c => {
+                const icon = {pass:'✅', warn:'⚠', fail:'❌'}[c.status] || '?';
+                const cls = {pass:'', warn:'table-warning', fail:'table-danger'}[c.status] || '';
+                const action = c.action ? `<br><small class="text-muted">→ ${c.action}</small>` : '';
+                return `<tr class="${cls}">
+                  <td class="text-center">${icon}</td>
+                  <td><strong>${c.check}</strong></td>
+                  <td>${c.detail}${action}</td>
+                </tr>`;
+            }).join('');
+            document.getElementById('validation-tbody').innerHTML = rows;
+
+            document.getElementById('validation-spinner').classList.add('d-none');
+            document.getElementById('validation-results').classList.remove('d-none');
+            setStepDone(9);
+        } else {
+            document.getElementById('validation-spinner').innerHTML =
+                `<div class="alert alert-danger">${data.error}</div>`;
+        }
+    } catch (e) {
+        document.getElementById('validation-spinner').innerHTML =
+            `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+// ── STEP 10: Report ─────────────────────────────────────────
+
+async function buildReportSummary() {
+    setStepDone(10);
+    if (!sessionId) return;
+
+    let sess;
+    try {
+        const r = await fetch(`/api/dvr/session/${sessionId}`);
+        const d = await r.json();
+        if (!d.success) return;
+        sess = d.session;
+    } catch(e) { return; }
+
+    const conn   = sess.connection || {};
+    const steps  = sess.steps || {};
+    const disc   = steps.discovery  || {};
+    const valSt  = steps.validation || {};
+    const checks = valSt.checks     || [];
+    const users  = steps.users      || {};
+
+    const passed = checks.filter(c => c.status === 'pass').length;
+    const warned = checks.filter(c => c.status === 'warn').length;
+    const failed = checks.filter(c => c.status === 'fail').length;
+    const overall = valSt.overall || (failed ? 'FAIL' : warned ? 'WARNING' : 'PASS');
+    const ovColors = {PASS: 'success', WARNING: 'warning', FAIL: 'danger'};
+    const ovColor  = ovColors[overall] || 'secondary';
+
+    // ── Overall badge in card header
+    document.getElementById('report-overall-badge').innerHTML =
+        `<span class="badge bg-${ovColor} fs-6 px-3 py-2">
+           <i class="fas fa-${overall==='PASS'?'circle-check':overall==='WARNING'?'triangle-exclamation':'circle-xmark'} me-1"></i>${overall}
+         </span>`;
+
+    // ── Device header
+    document.getElementById('report-device-header').innerHTML = `
+      <div class="card border-0" style="background:rgba(255,255,255,.04);">
+        <div class="card-body py-3">
+          <div class="row g-2">
+            <div class="col-sm-6 col-lg-3">
+              <div class="text-muted small">Device Name</div>
+              <div class="fw-semibold">${conn.device_name || '—'}</div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+              <div class="text-muted small">IP / Port</div>
+              <div class="fw-semibold">${conn.ip || '—'}:${conn.port || '—'}</div>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+              <div class="text-muted small">Model</div>
+              <div class="fw-semibold">${disc.model || '—'}</div>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+              <div class="text-muted small">Firmware</div>
+              <div class="fw-semibold">${disc.firmware_version || '—'}</div>
+            </div>
+            <div class="col-sm-6 col-lg-1">
+              <div class="text-muted small">Channels</div>
+              <div class="fw-semibold">${disc.active_channels ?? disc.total_channels ?? '—'}</div>
+            </div>
+            <div class="col-sm-6 col-lg-1">
+              <div class="text-muted small">Technician</div>
+              <div class="fw-semibold">${sess.technician || '—'}</div>
+            </div>
+          </div>
+          <div class="row g-2 mt-0">
+            <div class="col-sm-6 col-lg-3">
+              <div class="text-muted small">Serial Number</div>
+              <div class="fw-semibold" style="font-size:.85em;">${disc.serial_number || '—'}</div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+              <div class="text-muted small">MAC Address</div>
+              <div class="fw-semibold" style="font-size:.85em;">${disc.mac_address || '—'}</div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+              <div class="text-muted small">Configured</div>
+              <div class="fw-semibold" style="font-size:.85em;">${(sess.started_at||'').slice(0,16).replace('T',' ')} UTC</div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+              <div class="text-muted small">Session ID</div>
+              <div class="fw-semibold" style="font-size:.75em;word-break:break-all;">${sessionId}</div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    // ── Score scorecards
+    document.getElementById('report-score-row').innerHTML = `
+      <div class="col-4">
+        <div class="card text-center border-success">
+          <div class="card-body py-3">
+            <div class="fs-2 fw-bold text-success">${passed}</div>
+            <div class="small text-muted">Passed</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="card text-center border-warning">
+          <div class="card-body py-3">
+            <div class="fs-2 fw-bold text-warning">${warned}</div>
+            <div class="small text-muted">Warnings</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="card text-center border-danger">
+          <div class="card-body py-3">
+            <div class="fs-2 fw-bold text-danger">${failed}</div>
+            <div class="small text-muted">Failed</div>
+          </div>
+        </div>
+      </div>`;
+
+    // ── Configuration steps table
+    const stepDefs = [
+        {key:'time',       label:'Time / NTP',            icon:'clock'},
+        {key:'storage',    label:'Storage / HDD',         icon:'hard-drive'},
+        {key:'streams',    label:'Camera Streams',        icon:'camera'},
+        {key:'recording',  label:'Recording Schedule',    icon:'circle-dot'},
+        {key:'holiday',    label:'Holiday Schedule',      icon:'calendar-days'},
+        {key:'users',      label:'User Accounts',         icon:'users'},
+    ];
+    const stepRows = stepDefs.map(def => {
+        const st = steps[def.key];
+        if (!st) return '';
+        let detail = '';
+        let icon   = 'circle-check';
+        let cls    = 'success';
+        if (def.key === 'time') {
+            detail = `${st.iana_timezone || ''} · NTP: ${st.ntp_server || ''} · DST: ${st.dst_enabled ? 'On' : 'Off'}`;
+        } else if (def.key === 'storage') {
+            const hdds = st.hdds || [];
+            detail = hdds.map(h => `${h.name}: ${h.status}`).join(', ') || 'No HDDs';
+        } else if (def.key === 'streams') {
+            const chs = st.channels || [];
+            const fbChs = chs.filter(c => c.sub_stream === 'configured_fallback');
+            const errChs = chs.filter(c => c.main_stream === 'error' || c.sub_stream === 'error');
+            detail = `${chs.length} channel(s) configured`;
+            if (fbChs.length) { detail += ` · ${fbChs.length} sub-stream fallback(s)`; cls = 'warning'; icon = 'triangle-exclamation'; }
+            if (errChs.length) { detail += ` · ${errChs.length} error(s)`; cls = 'danger'; icon = 'circle-xmark'; }
+        } else if (def.key === 'recording') {
+            const chs = st.channels || [];
+            const err = chs.filter(c => c.status === 'error').length;
+            detail = `${chs.length} channel(s)`;
+            if (err) { detail += ` · ${err} error(s)`; cls = 'warning'; icon = 'triangle-exclamation'; }
+        } else if (def.key === 'holiday') {
+            detail = st.name || 'Thanksgiving & Black Friday';
+        } else if (def.key === 'users') {
+            const accs = st.accounts || [];
+            detail = accs.map(a => `${a.username} (${a.role}): ${a.status}`).join(' · ') || 'N/A';
+            const hasErr = accs.some(a => a.status === 'error');
+            if (hasErr) { cls = 'danger'; icon = 'circle-xmark'; }
+        }
+        return `<tr>
+          <td class="text-center" style="width:36px;"><i class="fas fa-${icon} text-${cls}"></i></td>
+          <td><i class="fas fa-${def.icon} me-2 text-muted" style="width:14px;"></i>${def.label}</td>
+          <td class="text-muted small">${detail}</td>
+        </tr>`;
+    }).join('');
+    document.getElementById('report-steps-table').innerHTML = `
+      <table class="table table-sm table-borderless mb-0">
+        <tbody>${stepRows}</tbody>
+      </table>`;
+
+    // ── Validation checks table
+    const valRows = checks.map(c => {
+        const icon   = c.status==='pass' ? 'circle-check' : c.status==='warn' ? 'triangle-exclamation' : 'circle-xmark';
+        const cls    = c.status==='pass' ? 'success' : c.status==='warn' ? 'warning' : 'danger';
+        const action = c.action ? `<br><small class="text-muted"><i class="fas fa-arrow-right me-1"></i>${c.action}</small>` : '';
+        return `<tr>
+          <td class="text-center" style="width:36px;"><i class="fas fa-${icon} text-${cls}"></i></td>
+          <td class="fw-semibold" style="width:200px;font-size:.9em;">${c.check}</td>
+          <td class="small">${c.detail}${action}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="3" class="text-muted text-center">No validation data</td></tr>';
+    document.getElementById('report-validation-table').innerHTML = `
+      <table class="table table-sm table-borderless mb-0">
+        <tbody>${valRows}</tbody>
+      </table>`;
+
+    // ── User accounts
+    const accs = (users.accounts || []);
+    if (accs.length) {
+        const rows = accs.map(a => {
+            const cl = a.status === 'created' ? 'success' : a.status.includes('failed') ? 'warning' : 'danger';
+            return `<tr>
+              <td><strong>${a.username}</strong></td>
+              <td>${a.role}</td>
+              <td><code>${a.password || '—'}</code></td>
+              <td><span class="badge bg-${cl}">${a.status}</span></td>
+              <td class="small text-muted">${a.permissions || ''}</td>
+            </tr>`;
+        }).join('');
+        document.getElementById('report-accounts').innerHTML = `
+          <h6 class="text-uppercase text-muted mb-2" style="letter-spacing:.05em;font-size:.75rem;">
+            <i class="fas fa-users me-1"></i>User Accounts Created
+          </h6>
+          <table class="table table-sm table-borderless">
+            <thead class="table-dark">
+              <tr><th>Username</th><th>Role</th><th>Password</th><th>Status</th><th>Permissions</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+    }
+}
+
+async function downloadReport(fmt) {
+    const btn = event.currentTarget || document.activeElement;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Generating…';
+
+    try {
+        const res = await fetch(`/api/dvr/report/${fmt}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: sessionId}),
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            alert('Report error: ' + (err.error || 'Unknown error'));
+            return;
+        }
+        const blob = await res.blob();
+        const ext = fmt === 'excel' ? 'xlsx' : fmt;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `DVR_Config_Report.${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        alert('Download failed: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+async function sendEmailReport() {
+    const raw = document.getElementById('email_recipients').value;
+    const recipients = raw.split(',').map(s => s.trim()).filter(Boolean);
+    if (!recipients.length) {
+        showAlert('email-result', 'warning', 'Please enter at least one recipient email.');
+        return;
+    }
+    const formats = [];
+    if (document.getElementById('fmt_pdf').checked) formats.push('pdf');
+    if (document.getElementById('fmt_excel').checked) formats.push('excel');
+    if (document.getElementById('fmt_json').checked) formats.push('json');
+
+    showSpinner('email-result', 'Sending report…');
+    try {
+        const res = await fetch('/api/dvr/email-report', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: sessionId, recipients, formats}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            showAlert('email-result', 'success', data.message);
+        } else {
+            showAlert('email-result', 'danger', data.error);
+        }
+    } catch (e) {
+        showAlert('email-result', 'danger', e.message);
+    }
+}
+
+// ── Session History ──────────────────────────────────────────
+
+async function showHistory() {
+    const modal = new bootstrap.Modal(document.getElementById('historyModal'));
+    modal.show();
+    document.getElementById('history-loading').classList.remove('d-none');
+    document.getElementById('history-table-wrap').classList.add('d-none');
+
+    try {
+        const res  = await fetch('/api/dvr/sessions');
+        const data = await res.json();
+        const ovColor = o => o==='PASS'?'success':o==='WARNING'?'warning':o==='FAIL'?'danger':'secondary';
+        const ovIcon  = o => o==='PASS'?'circle-check':o==='WARNING'?'triangle-exclamation':o==='FAIL'?'circle-xmark':'circle';
+        const rows = (data.sessions || []).map(s => {
+            const p = s.passed ?? '—', w = s.warned ?? '—', f = s.failed ?? '—';
+            const checksCell = (typeof s.passed === 'number')
+                ? `<span class="text-success me-1" title="Passed"><i class="fas fa-circle-check"></i> ${p}</span>
+                   <span class="text-warning me-1" title="Warned"><i class="fas fa-triangle-exclamation"></i> ${w}</span>
+                   <span class="text-danger" title="Failed"><i class="fas fa-circle-xmark"></i> ${f}</span>`
+                : '<span class="text-muted small">—</span>';
+            return `<tr>
+              <td><strong>${s.device_name}</strong></td>
+              <td class="font-monospace small">${s.ip}</td>
+              <td>${checksCell}</td>
+              <td><span class="badge bg-${ovColor(s.overall)}"><i class="fas fa-${ovIcon(s.overall)} me-1"></i>${s.overall}</span></td>
+              <td>${s.technician}</td>
+              <td class="small text-muted">${s.updated_at ? s.updated_at.slice(0,16).replace('T',' ') : 'N/A'} UTC</td>
+              <td class="text-center">
+                <button class="btn btn-outline-secondary btn-sm py-0" onclick="showSessionDetail('${s.id}')">
+                  <i class="fas fa-magnifying-glass me-1"></i>View
+                </button>
+              </td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="7" class="text-center text-muted py-3">No configuration sessions found.</td></tr>';
+        document.getElementById('history-tbody').innerHTML = rows;
+        document.getElementById('history-loading').classList.add('d-none');
+        document.getElementById('history-table-wrap').classList.remove('d-none');
+    } catch (e) {
+        document.getElementById('history-loading').innerHTML = `<p class="text-danger">Error: ${e.message}</p>`;
+    }
+}
+
+async function showSessionDetail(sessId) {
+    bootstrap.Modal.getInstance(document.getElementById('historyModal'))?.hide();
+    const detailModal = new bootstrap.Modal(document.getElementById('sessionDetailModal'));
+    document.getElementById('session-detail-body').innerHTML =
+        '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+    detailModal.show();
+
+    try {
+        const r = await fetch(`/api/dvr/session/${sessId}`);
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || 'Session not found');
+        const sess   = d.session;
+        const conn   = sess.connection || {};
+        const steps  = sess.steps || {};
+        const disc   = steps.discovery || {};
+        const valSt  = steps.validation || {};
+        const checks = valSt.checks || [];
+        const users  = steps.users || {};
+        const overall = valSt.overall || 'Incomplete';
+        const ovC = overall==='PASS'?'success':overall==='WARNING'?'warning':overall==='FAIL'?'danger':'secondary';
+
+        // Validation rows
+        const valRows = checks.map(c => {
+            const ic = c.status==='pass'?'circle-check':c.status==='warn'?'triangle-exclamation':'circle-xmark';
+            const cl = c.status==='pass'?'success':c.status==='warn'?'warning':'danger';
+            const act = c.action ? `<br><small class="text-muted"><i class="fas fa-arrow-right me-1"></i>${c.action}</small>` : '';
+            return `<tr>
+              <td class="text-center"><i class="fas fa-${ic} text-${cl}"></i></td>
+              <td class="fw-semibold small">${c.check}</td>
+              <td class="small">${c.detail}${act}</td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="3" class="text-muted">No validation data</td></tr>';
+
+        // User accounts
+        const accs = users.accounts || [];
+        const userRows = accs.map(a => {
+            const cl = a.status==='created'?'success':a.status.includes('failed')?'warning':'danger';
+            return `<tr>
+              <td><strong>${a.username}</strong></td>
+              <td class="small">${a.role}</td>
+              <td><code class="small">${a.password||'—'}</code></td>
+              <td><span class="badge bg-${cl} small">${a.status}</span></td>
+            </tr>`;
+        }).join('');
+
+        // Stream channels
+        const streams = (steps.streams||{}).channels || [];
+        const streamRows = streams.map(c => {
+            const subNote = c.sub_note ? `<br><small class="text-warning">${c.sub_note}</small>` : '';
+            const res = c.sub_resolution && c.sub_resolution!=='N/A' ? ` <small class="text-muted">(${c.sub_resolution})</small>` : '';
+            return `<tr>
+              <td>Ch ${c.channel}</td>
+              <td>${badge(c.main_stream||c.main)}</td>
+              <td>${badge(c.sub_stream||c.sub)}${res}${subNote}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('session-detail-body').innerHTML = `
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <h5 class="mb-1">${conn.device_name||'—'}</h5>
+              <div class="text-muted small">${conn.ip||'—'}:${conn.port||'—'} &nbsp;·&nbsp; ${(sess.started_at||'').slice(0,16).replace('T',' ')} UTC &nbsp;·&nbsp; Tech: ${sess.technician||'—'}</div>
+            </div>
+            <span class="badge bg-${ovC} fs-6 px-3 py-2">
+              <i class="fas fa-${ovC==='success'?'circle-check':ovC==='warning'?'triangle-exclamation':'circle-xmark'} me-1"></i>${overall}
+            </span>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-sm-3"><div class="text-muted small">Model</div><div class="fw-semibold small">${disc.model||'—'}</div></div>
+            <div class="col-sm-3"><div class="text-muted small">Serial</div><div class="fw-semibold small">${disc.serial_number||'—'}</div></div>
+            <div class="col-sm-3"><div class="text-muted small">Firmware</div><div class="fw-semibold small">${disc.firmware_version||'—'}</div></div>
+            <div class="col-sm-3"><div class="text-muted small">Session ID</div><div class="fw-semibold small" style="word-break:break-all">${sessId}</div></div>
+          </div>
+
+          <h6 class="text-uppercase text-muted mb-2" style="font-size:.72rem;letter-spacing:.05em;">
+            <i class="fas fa-shield-halved me-1"></i>Validation Results
+          </h6>
+          <table class="table table-sm table-borderless mb-3">
+            <tbody>${valRows}</tbody>
+          </table>
+
+          ${streamRows ? `
+          <h6 class="text-uppercase text-muted mb-2" style="font-size:.72rem;letter-spacing:.05em;">
+            <i class="fas fa-camera me-1"></i>Stream Configuration
+          </h6>
+          <table class="table table-sm table-borderless mb-3">
+            <thead class="table-dark"><tr><th>Channel</th><th>Main Stream</th><th>Sub Stream</th></tr></thead>
+            <tbody>${streamRows}</tbody>
+          </table>` : ''}
+
+          ${userRows ? `
+          <h6 class="text-uppercase text-muted mb-2" style="font-size:.72rem;letter-spacing:.05em;">
+            <i class="fas fa-users me-1"></i>User Accounts
+          </h6>
+          <table class="table table-sm table-borderless mb-3">
+            <thead class="table-dark"><tr><th>Username</th><th>Role</th><th>Password</th><th>Status</th></tr></thead>
+            <tbody>${userRows}</tbody>
+          </table>` : ''}`;
+    } catch(e) {
+        document.getElementById('session-detail-body').innerHTML =
+            `<div class="alert alert-danger">Failed to load session: ${e.message}</div>`;
+    }
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function badge(status) {
+    const map = {
+        configured:          ['success', 'circle-check'],
+        configured_fallback: ['warning', 'circle-exclamation'],
+        created:             ['success', 'circle-check'],
+        pass:                ['success', 'circle-check'],
+        ok:                  ['success', 'circle-check'],
+        skipped:             ['secondary','minus-circle'],
+        error:               ['danger',  'circle-xmark'],
+        fail:                ['danger',  'circle-xmark'],
+        warn:                ['warning', 'triangle-exclamation'],
+        created_permissions_failed: ['warning', 'triangle-exclamation'],
+    };
+    const [cls, icon] = map[(status||'').toLowerCase()] || ['secondary','circle'];
+    const label = status === 'configured_fallback' ? 'fallback' : status;
+    return `<span class="badge bg-${cls}"><i class="fas fa-${icon} me-1"></i>${label}</span>`;
+}
+
+function startNewSession() {
+    sessionId = null;
+    currentStep = 1;
+    // Reset all steps
+    document.querySelectorAll('.wizard-step').forEach(el => el.classList.add('d-none'));
+    document.getElementById('step-1').classList.remove('d-none');
+    document.getElementById('step1-result').innerHTML = '';
+    document.getElementById('device_name').value = '';
+    document.getElementById('device_ip').value = '';
+    document.getElementById('device_pass').value = '';
+    // Reset step indicators
+    for (let i = 1; i <= 10; i++) {
+        const circle = document.querySelector(`#step-ind-${i} .step-circle`);
+        if (circle) {
+            circle.style.borderColor = '#444';
+            circle.style.background = '#1a1c23';
+            circle.style.color = '';
+        }
+    }
+}
+
+// Init
+setStepActive(1);
+</script>
+{% endblock %}

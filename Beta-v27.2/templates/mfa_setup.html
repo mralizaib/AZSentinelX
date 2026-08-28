@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+
+{% block title %}Set Up MFA — REBIZ Sentinel X{% endblock %}
+
+{% block auth_content %}
+<div class="row justify-content-center">
+  <div class="col-md-7 col-lg-5">
+    <div class="card shadow-lg border-0">
+      <div class="card-header text-center bg-primary text-white py-4">
+        <i class="fas fa-shield-halved fa-2x mb-2"></i>
+        <h2 class="h4 mb-1">Set up multi-factor authentication</h2>
+        <p class="mb-0 opacity-75">Protecting {{ username }} with a standard TOTP authenticator</p>
+      </div>
+      <div class="card-body p-4 text-center">
+        <p class="text-muted">Scan this QR code with Google Authenticator, Microsoft Authenticator, Authy, or another TOTP-compatible app.</p>
+        <div class="bg-white d-inline-block p-3 rounded mb-3">
+          <img src="{{ qr_data_uri }}" alt="MFA setup QR code" width="220" height="220">
+        </div>
+        <p class="small text-muted mb-1">Can’t scan? Enter this setup key manually:</p>
+        <code class="d-inline-block user-select-all mb-4">{{ secret }}</code>
+        <form method="POST" autocomplete="off">
+          <label for="otp" class="form-label fw-semibold">Enter the 6-digit code to confirm setup</label>
+          <input type="text" class="form-control form-control-lg text-center mb-3"
+                 id="otp" name="otp" inputmode="numeric" pattern="[0-9]{6}"
+                 maxlength="6" autocomplete="one-time-code" required autofocus>
+          <button type="submit" class="btn btn-primary btn-lg w-100">
+            <i class="fas fa-check me-2"></i>Verify and continue
+          </button>
+        </form>
+        <a class="btn btn-link mt-2" href="{{ url_for('auth.logout') }}">Cancel</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

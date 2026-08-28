@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+
+{% block title %}MFA Verification — REBIZ Sentinel X{% endblock %}
+
+{% block auth_content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-4">
+    <div class="card shadow-lg border-0">
+      <div class="card-header text-center bg-primary text-white py-4">
+        <i class="fas fa-mobile-screen-button fa-2x mb-2"></i>
+        <h2 class="h4 mb-1">MFA verification</h2>
+        <p class="mb-0 opacity-75">{{ username }}</p>
+      </div>
+      <div class="card-body p-4 text-center">
+        <p class="text-muted">Open your authenticator app and enter the current 6-digit code.</p>
+        <form method="POST" autocomplete="off">
+          <label for="otp" class="form-label fw-semibold">Authenticator code</label>
+          <input type="text" class="form-control form-control-lg text-center mb-3"
+                 id="otp" name="otp" inputmode="numeric" pattern="[0-9]{6}"
+                 maxlength="6" autocomplete="one-time-code" required autofocus>
+          <button type="submit" class="btn btn-primary btn-lg w-100">
+            <i class="fas fa-unlock me-2"></i>Verify and sign in
+          </button>
+        </form>
+        <a class="btn btn-link mt-2" href="{{ url_for('auth.logout') }}">Cancel</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
