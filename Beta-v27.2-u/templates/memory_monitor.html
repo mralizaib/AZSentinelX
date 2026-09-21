@@ -1,0 +1,387 @@
+{% extends "layout.html" %}
+
+{% block title %}Memory Monitor — REBIZ Sentinel X{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="fas fa-memory me-2" style="color:var(--primary-glow)"></i>Memory &amp; Resource Monitor</h4>
+        <small class="text-muted">Live resource usage for the Sentinel X application and host system</small>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span id="last-updated" class="text-muted small"></span>
+        <button id="btn-refresh" class="btn btn-sm btn-outline-secondary" onclick="fetchStats()">
+            <i class="fas fa-rotate-right me-1"></i>Refresh
+        </button>
+        <button id="btn-toggle" class="btn btn-sm btn-outline-success" onclick="toggleAutoRefresh()">
+            <i class="fas fa-play me-1"></i>Auto
+        </button>
+    </div>
+</div>
+
+<!-- ── PROCESS SCORECARDS ─────────────────────────────────────────────── -->
+<div class="row g-3 mb-4" id="proc-cards">
+    {% for item in [
+        ('proc-rss',     'RSS Memory',         'fa-memory',          '#00d1ff', 'MB'),
+        ('proc-vms',     'Virtual Memory',     'fa-layer-group',     '#8b5cf6', 'MB'),
+        ('proc-cpu',     'Process CPU',        'fa-microchip',       '#10b981', '%'),
+        ('proc-threads', 'Threads',            'fa-code-branch',     '#f59e0b', ''),
+    ] %}
+    <div class="col-6 col-md-3">
+        <div class="card h-100" style="border-color:rgba(255,255,255,0.06);">
+            <div class="card-body py-3">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center me-2"
+                         style="width:36px;height:36px;background:rgba({{item[3][1:3]|int(16)}},{{item[3][3:5]|int(16)}},{{item[3][5:7]|int(16)}},0.15);">
+                        <i class="fas {{item[2]}} small" style="color:{{item[3]}}"></i>
+                    </div>
+                    <span class="small text-muted">{{item[1]}}</span>
+                </div>
+                <div class="d-flex align-items-baseline">
+                    <span id="{{item[0]}}" class="fw-bold fs-4" style="color:{{item[3]}}">—</span>
+                    <span class="ms-1 text-muted small">{{item[4]}}</span>
+                </div>
+                <div class="progress mt-2" style="height:4px;background:rgba(255,255,255,0.07);">
+                    <div id="{{item[0]}}-bar" class="progress-bar" style="background:{{item[3]}};width:0%;transition:width .6s ease;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ── SYSTEM SCORECARDS ──────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    {% for item in [
+        ('sys-mem-pct',  'System RAM',         'fa-server',          '#ef4444', '%'),
+        ('sys-cpu-pct',  'System CPU',         'fa-gauge-high',      '#f97316', '%'),
+        ('sys-disk-pct', 'Disk Usage',         'fa-hard-drive',      '#6366f1', '%'),
+        ('sys-swap-pct', 'Swap',               'fa-shuffle',         '#ec4899', '%'),
+    ] %}
+    <div class="col-6 col-md-3">
+        <div class="card h-100" style="border-color:rgba(255,255,255,0.06);">
+            <div class="card-body py-3">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center me-2"
+                         style="width:36px;height:36px;background:rgba({{item[3][1:3]|int(16)}},{{item[3][3:5]|int(16)}},{{item[3][5:7]|int(16)}},0.15);">
+                        <i class="fas {{item[2]}} small" style="color:{{item[3]}}"></i>
+                    </div>
+                    <span class="small text-muted">{{item[1]}}</span>
+                </div>
+                <div class="d-flex align-items-baseline">
+                    <span id="{{item[0]}}" class="fw-bold fs-4" style="color:{{item[3]}}">—</span>
+                    <span class="ms-1 text-muted small">{{item[4]}}</span>
+                </div>
+                <div class="progress mt-2" style="height:4px;background:rgba(255,255,255,0.07);">
+                    <div id="{{item[0]}}-bar" class="progress-bar" style="background:{{item[3]}};width:0%;transition:width .6s ease;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ── CHARTS ─────────────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card" style="border-color:rgba(255,255,255,0.06);">
+            <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:transparent;border-color:rgba(255,255,255,0.06);">
+                <span class="small fw-semibold"><i class="fas fa-memory me-2" style="color:#00d1ff"></i>Process Memory (last 60s)</span>
+            </div>
+            <div class="card-body p-3"><canvas id="chart-proc-mem" height="180"></canvas></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card" style="border-color:rgba(255,255,255,0.06);">
+            <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:transparent;border-color:rgba(255,255,255,0.06);">
+                <span class="small fw-semibold"><i class="fas fa-microchip me-2" style="color:#10b981"></i>CPU Usage (last 60s)</span>
+            </div>
+            <div class="card-body p-3"><canvas id="chart-cpu" height="180"></canvas></div>
+        </div>
+    </div>
+</div>
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card" style="border-color:rgba(255,255,255,0.06);">
+            <div class="card-header py-2" style="background:transparent;border-color:rgba(255,255,255,0.06);">
+                <span class="small fw-semibold"><i class="fas fa-server me-2" style="color:#ef4444"></i>System Memory (last 60s)</span>
+            </div>
+            <div class="card-body p-3"><canvas id="chart-sys-mem" height="180"></canvas></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card" style="border-color:rgba(255,255,255,0.06);">
+            <div class="card-header py-2" style="background:transparent;border-color:rgba(255,255,255,0.06);">
+                <span class="small fw-semibold"><i class="fas fa-hard-drive me-2" style="color:#6366f1"></i>Disk &amp; CPU Per-Core</span>
+            </div>
+            <div class="card-body p-3"><canvas id="chart-cores" height="180"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<!-- ── DETAIL TABLES ──────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card" style="border-color:rgba(255,255,255,0.06);">
+            <div class="card-header py-2" style="background:transparent;border-color:rgba(255,255,255,0.06);">
+                <span class="small fw-semibold"><i class="fas fa-circle-info me-2" style="color:var(--primary-glow)"></i>Process Details</span>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0" id="tbl-proc">
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card" style="border-color:rgba(255,255,255,0.06);">
+            <div class="card-header py-2" style="background:transparent;border-color:rgba(255,255,255,0.06);">
+                <span class="small fw-semibold"><i class="fas fa-database me-2" style="color:var(--primary-glow)"></i>System Details</span>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0" id="tbl-sys">
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── TOP PROCESSES ─────────────────────────────────────────────────── -->
+<div class="card mb-4" style="border-color:rgba(255,255,255,0.06);">
+    <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:transparent;border-color:rgba(255,255,255,0.06);">
+        <span class="small fw-semibold"><i class="fas fa-list-ol me-2" style="color:var(--primary-glow)"></i>Top System Processes by Memory</span>
+        <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.75rem" onclick="fetchTopProcs()">
+            <i class="fas fa-rotate-right me-1"></i>Refresh
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-3">PID</th>
+                        <th>Name</th>
+                        <th>RSS (MB)</th>
+                        <th>CPU %</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="tbl-top-procs">
+                    <tr><td colspan="5" class="text-center text-muted py-3"><small>Loading...</small></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ─── Chart setup ─────────────────────────────────────────────────────── */
+const chartDefaults = {
+    responsive: true,
+    animation: { duration: 300 },
+    plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+    scales: {
+        x: { ticks: { color: '#6b7a94', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#6b7a94', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+    },
+};
+
+function mkChart(id, datasets, yLabel='') {
+    const ctx = document.getElementById(id).getContext('2d');
+    return new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets },
+        options: { ...chartDefaults, scales: {
+            ...chartDefaults.scales,
+            y: { ...chartDefaults.scales.y, title: { display: !!yLabel, text: yLabel, color: '#6b7a94', font: { size: 10 } } }
+        }},
+    });
+}
+
+const chartProcMem = mkChart('chart-proc-mem', [
+    { label: 'RSS (MB)',  data: [], borderColor: '#00d1ff', backgroundColor: 'rgba(0,209,255,0.08)', tension: 0.4, fill: true, pointRadius: 0 },
+    { label: 'VMS (MB)',  data: [], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.05)', tension: 0.4, fill: true, pointRadius: 0 },
+], 'MB');
+
+const chartCpu = mkChart('chart-cpu', [
+    { label: 'Process CPU %', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', tension: 0.4, fill: true, pointRadius: 0 },
+    { label: 'System CPU %',  data: [], borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.06)',  tension: 0.4, fill: false, pointRadius: 0 },
+], '%');
+
+const chartSysMem = mkChart('chart-sys-mem', [
+    { label: 'Used (MB)',   data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', tension: 0.4, fill: true,  pointRadius: 0 },
+    { label: 'RAM Usage %', data: [], borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.05)', tension: 0.4, fill: false, pointRadius: 0, yAxisID: 'y2' },
+], 'MB');
+// Add secondary y-axis for % on sysMem chart
+chartSysMem.options.scales.y2 = {
+    position: 'right', ticks: { color: '#fbbf24', font: { size: 9 }, callback: v => v + '%' },
+    grid: { drawOnChartArea: false }, max: 100, min: 0,
+};
+
+// Per-core bar chart
+const coresCtx = document.getElementById('chart-cores').getContext('2d');
+const chartCores = new Chart(coresCtx, {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'CPU % per Core', data: [], backgroundColor: 'rgba(99,102,241,0.5)', borderColor: '#6366f1', borderWidth: 1 }] },
+    options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, max: 100, min: 0 } } },
+});
+
+/* ─── Data fetching ───────────────────────────────────────────────────── */
+function pct(val) { return Math.min(100, Math.max(0, val || 0)); }
+
+function updateChart(chart, labels, ...seriesData) {
+    chart.data.labels = labels;
+    seriesData.forEach((d, i) => { chart.data.datasets[i].data = d; });
+    chart.update('none');
+}
+
+function setStat(id, val, barMax) {
+    const el = document.getElementById(id);
+    const bar = document.getElementById(id + '-bar');
+    if (el) el.textContent = val !== null && val !== undefined ? val : '—';
+    if (bar && barMax) bar.style.width = pct((parseFloat(val) / barMax) * 100) + '%';
+}
+
+function detailRow(label, value, mono=false) {
+    const style = mono ? 'font-family:monospace;color:#00d1ff;' : '';
+    return `<tr>
+        <td class="ps-3 text-muted small py-1" style="width:50%">${label}</td>
+        <td class="small py-1 pe-3" style="${style}">${value !== null && value !== undefined ? value : '—'}</td>
+    </tr>`;
+}
+
+function fetchStats() {
+    fetch('/api/memory/stats')
+        .then(r => r.json())
+        .then(d => {
+            if (d.snapshot && d.snapshot.error) {
+                document.getElementById('last-updated').textContent = '⚠ ' + d.snapshot.error;
+                return;
+            }
+            const p = d.snapshot.process;
+            const s = d.snapshot.system;
+            const h = d.history;
+
+            // Scorecards — process
+            setStat('proc-rss',     p.rss_mb,      512);
+            setStat('proc-vms',     p.vms_mb,      2048);
+            setStat('proc-cpu',     p.cpu_pct,     100);
+            setStat('proc-threads', p.num_threads, 64);
+
+            // Scorecards — system
+            setStat('sys-mem-pct',  s.mem_pct,  100);
+            setStat('sys-cpu-pct',  s.cpu_pct,  100);
+            setStat('sys-disk-pct', s.disk_pct, 100);
+            setStat('sys-swap-pct', s.swap_pct, 100);
+
+            // Color bars based on value
+            ['sys-mem-pct','sys-cpu-pct','sys-disk-pct','sys-swap-pct'].forEach(id => {
+                const bar = document.getElementById(id + '-bar');
+                const v = parseFloat(document.getElementById(id).textContent);
+                if (bar) bar.style.background = v > 85 ? '#ef4444' : v > 65 ? '#f97316' : '';
+            });
+
+            // Charts from history
+            updateChart(chartProcMem, h.ts, h.mem_rss_mb, h.mem_vms_mb);
+            updateChart(chartCpu,     h.ts, h.cpu_pct,    h.sys_cpu_pct);
+            updateChart(chartSysMem,  h.ts, h.sys_mem_used, h.sys_mem_pct);
+
+            // Per-core chart
+            if (s.cpu_per_core && s.cpu_per_core.length) {
+                chartCores.data.labels   = s.cpu_per_core.map((_,i) => 'Core ' + i);
+                chartCores.data.datasets[0].data = s.cpu_per_core;
+                chartCores.data.datasets[0].backgroundColor = s.cpu_per_core.map(v =>
+                    v > 85 ? 'rgba(239,68,68,0.6)' : v > 60 ? 'rgba(249,115,22,0.5)' : 'rgba(99,102,241,0.5)');
+                chartCores.update('none');
+            }
+
+            // Process detail table
+            const procBody = document.querySelector('#tbl-proc tbody');
+            procBody.innerHTML = [
+                detailRow('PID',           p.pid, true),
+                detailRow('RSS Memory',    (p.rss_mb || 0) + ' MB'),
+                detailRow('Virtual Memory',(p.vms_mb || 0) + ' MB'),
+                detailRow('USS (Unique)',   p.uss_mb !== null ? p.uss_mb + ' MB' : 'N/A'),
+                detailRow('PSS (Shared)',   p.pss_mb !== null ? p.pss_mb + ' MB' : 'N/A'),
+                detailRow('Memory %',      (p.mem_pct || 0) + '%'),
+                detailRow('CPU %',         (p.cpu_pct || 0) + '%'),
+                detailRow('Threads',       p.num_threads),
+                detailRow('Open FDs',      p.num_fds),
+                detailRow('Connections',   p.connections),
+                p.children && p.children.length
+                    ? detailRow('Child Procs', p.children.length)
+                    : '',
+            ].join('');
+
+            // System detail table
+            const sysBody = document.querySelector('#tbl-sys tbody');
+            sysBody.innerHTML = [
+                detailRow('Total RAM',     s.mem_total_mb + ' MB'),
+                detailRow('Used RAM',      s.mem_used_mb  + ' MB'),
+                detailRow('Available RAM', s.mem_avail_mb + ' MB'),
+                detailRow('RAM Usage',     s.mem_pct + '%'),
+                detailRow('Swap Total',    s.swap_total_mb + ' MB'),
+                detailRow('Swap Used',     s.swap_used_mb  + ' MB'),
+                detailRow('CPU Cores',     s.cpu_count),
+                detailRow('System CPU %',  s.cpu_pct + '%'),
+                detailRow('Disk Total',    s.disk_total_gb + ' GB'),
+                detailRow('Disk Used',     s.disk_used_gb  + ' GB'),
+                detailRow('Disk Free',     s.disk_free_gb  + ' GB'),
+                detailRow('Disk Usage',    s.disk_pct + '%'),
+                s.bytes_sent_mb !== undefined ? detailRow('Net Sent', s.bytes_sent_mb + ' MB') : '',
+                s.bytes_recv_mb !== undefined ? detailRow('Net Recv', s.bytes_recv_mb + ' MB') : '',
+            ].join('');
+
+            document.getElementById('last-updated').textContent = 'Updated: ' + d.snapshot.ts + ' UTC';
+        })
+        .catch(e => {
+            document.getElementById('last-updated').textContent = '⚠ Fetch error: ' + e.message;
+        });
+}
+
+function fetchTopProcs() {
+    fetch('/api/memory/top-processes')
+        .then(r => r.json())
+        .then(d => {
+            const tbody = document.getElementById('tbl-top-procs');
+            if (d.error) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-2">${d.error}</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = d.processes.map(p => `
+                <tr ${p.is_self ? 'style="background:rgba(0,209,255,0.06)"' : ''}>
+                    <td class="ps-3 small">${p.pid} ${p.is_self ? '<span class="badge text-bg-info ms-1" style="font-size:.65rem">this app</span>' : ''}</td>
+                    <td class="small fw-semibold">${p.name}</td>
+                    <td class="small">${p.rss_mb}</td>
+                    <td class="small">${p.cpu_pct.toFixed(1)}</td>
+                    <td class="small"><span class="badge text-bg-secondary" style="font-size:.65rem">${p.status}</span></td>
+                </tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-2">No processes found</td></tr>';
+        });
+}
+
+/* ─── Auto-refresh ────────────────────────────────────────────────────── */
+let autoTimer = null;
+let autoOn = false;
+
+function toggleAutoRefresh() {
+    autoOn = !autoOn;
+    const btn = document.getElementById('btn-toggle');
+    if (autoOn) {
+        btn.innerHTML = '<i class="fas fa-pause me-1"></i>Auto';
+        btn.classList.replace('btn-outline-success', 'btn-success');
+        autoTimer = setInterval(() => { fetchStats(); }, 2000);
+    } else {
+        btn.innerHTML = '<i class="fas fa-play me-1"></i>Auto';
+        btn.classList.replace('btn-success', 'btn-outline-success');
+        clearInterval(autoTimer);
+    }
+}
+
+// Initial load
+fetchStats();
+fetchTopProcs();
+// Start auto-refresh by default
+toggleAutoRefresh();
+</script>
+{% endblock %}

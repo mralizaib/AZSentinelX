@@ -1,0 +1,194 @@
+{% extends 'layout.html' %}
+
+{% block title %}Scheduler Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header pb-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6>Scheduler Management</h6>
+                        <div>
+                            <a href="{{ url_for('admin.run_scheduler_jobs') }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-sync-alt"></i> Update Jobs
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <strong>Note:</strong> This page allows administrators to manage the background tasks that run automatically. 
+                        These tasks are responsible for checking and sending alerts as well as generating scheduled reports.
+                    </div>
+
+                    <h5 class="mb-3">Scheduled Jobs</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped align-items-center">
+                            <thead>
+                                <tr>
+                                    <th>Job ID</th>
+                                    <th>Function</th>
+                                    <th>Interval</th>
+                                    <th>Next Run</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for job in jobs %}
+                                <tr>
+                                    <td>{{ job.id }}</td>
+                                    <td>{{ job.func_name }}</td>
+                                    <td>{{ job.interval }}</td>
+                                    <td>{{ job.next_run }}</td>
+                                    <td>
+                                        {% if job.id == 'check_alerts' %}
+                                        <a href="{{ url_for('admin.test_alerts') }}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-play"></i> Run Now
+                                        </a>
+                                        {% elif job.id == 'generate_reports' %}
+                                        <a href="{{ url_for('admin.test_reports') }}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-play"></i> Run Now
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h5 class="mt-4 mb-3">System Configuration</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped align-items-center">
+                            <thead>
+                                <tr>
+                                    <th>Setting</th>
+                                    <th>Value</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for config in system_configs %}
+                                <tr>
+                                    <td>{{ config.key }}</td>
+                                    <td>{{ config.value }}</td>
+                                    <td>{{ config.description or 'No description' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header pb-0">
+                    <h6>Alert Tasks</h6>
+                </div>
+                <div class="card-body">
+                    <p>The alert tasks check for new security alerts and send notifications based on alert configurations.</p>
+
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('admin.test_alerts') }}" class="btn btn-primary">
+                            <i class="fas fa-bell"></i> Run Alert Check Now
+                        </a>
+                    </div>
+
+                    <div class="mt-3">
+                        <h6>Configuration Details:</h6>
+                        <ul>
+                            <li><strong>Checking Interval:</strong> Every {{ alert_interval }} minutes</li>
+                            <li><strong>Configured Alerts:</strong> {{ alert_count }}</li>
+                            <li><strong>Last Run:</strong> {{ alert_last_run or 'Never' }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header pb-0">
+                    <h6>Report Tasks</h6>
+                </div>
+                <div class="card-body">
+                    <p>The report tasks generate and send scheduled security reports based on report configurations.</p>
+
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('admin.test_reports') }}" class="btn btn-primary">
+                            <i class="fas fa-file-alt"></i> Run Report Generation Now
+                        </a>
+                    </div>
+
+                    <div class="mt-3">
+                        <h6>Configuration Details:</h6>
+                        <ul>
+                            <li><strong>Checking Interval:</strong> Every minute (based on configured times)</li>
+                            <li><strong>Configured Reports:</strong> {{ report_count }}</li>
+                            <li><strong>Last Run:</strong> {{ report_last_run or 'Never' }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Any JavaScript needed for this page can go here
+});
+
+function testAlerts() {
+        if (confirm('This will send test alerts to all enabled alert configurations. Continue?')) {
+            fetch('/admin/test-alerts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    showAlert('Test alerts triggered successfully', 'success');
+                } else {
+                    showAlert('Failed to trigger test alerts', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Error triggering test alerts', 'error');
+            });
+        }
+    }
+
+    function testScheduledReports() {
+        if (confirm('This will run the scheduled report check (same as what runs every minute). Continue?')) {
+            fetch('/admin/test-scheduled-reports', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    showAlert('Scheduled report check completed. Check logs for details.', 'success');
+                } else {
+                    showAlert('Failed to run scheduled report check', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Error running scheduled report check', 'error');
+            });
+        }
+    }
+</script>
+{% endblock %}
