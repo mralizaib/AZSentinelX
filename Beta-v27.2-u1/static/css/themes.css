@@ -1,0 +1,918 @@
+/* ═══════════════════════════════════════════════════════════════
+   REBIZ SENTINEL X — GLOBAL THEME ENGINE v2
+   Themes applied via [data-theme] attribute on <html>.
+   All components use CSS variables defined here.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Smooth transitions on theme switch ── */
+body,
+.sidebar, #sidebar,
+.card, .card-header, .card-body, .card-footer,
+.modal-content, .modal-header, .modal-footer, .modal-body,
+.dropdown-menu, .dropdown-item,
+.form-control, .form-select, .input-group-text,
+.table, .table th, .table td,
+.nav-link,
+.list-group-item,
+.btn,
+main, .main-content {
+    transition: background-color 0.22s ease, color 0.22s ease,
+                border-color 0.22s ease, box-shadow 0.22s ease !important;
+}
+/* Suppress transitions during initial load */
+html.no-transition,
+html.no-transition * {
+    transition: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   1. DARK (default)
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+    /* Backgrounds */
+    --t-bg-app:          #0e1017;
+    --t-bg-sidebar:      #111319;
+    --t-bg-card:         #1a1c23;
+    --t-bg-card-alt:     #1e2130;
+    --t-bg-input:        #1e2130;
+    --t-bg-modal:        #1a1c23;
+    --t-bg-dropdown:     #1e2130;
+    --t-bg-th:           #161820;
+    --t-bg-tr:           rgba(255,255,255,0.02);
+    --t-bg-tr-hover:     rgba(255,255,255,0.07);
+    --t-scrollbar-track: rgba(255,255,255,0.04);
+    --t-scrollbar-thumb: rgba(255,255,255,0.20);
+
+    /* Text */
+    --t-text:            #e2e8f0;
+    --t-text-muted:      #8892a4;
+    --t-text-dim:        #5a6478;
+    --t-text-heading:    #f8fafc;
+    --t-text-nav:        #8892a4;
+    --t-text-nav-active: #ffffff;
+    --t-text-input:      #e2e8f0;
+    --t-text-placeholder:#5a6478;
+
+    /* Accent */
+    --t-accent:          #00d1ff;
+    --t-accent-dim:      rgba(0,209,255,0.10);
+    --t-accent-hover:    #00b8e0;
+
+    /* Borders */
+    --t-border:          rgba(255,255,255,0.07);
+    --t-border-card:     rgba(255,255,255,0.05);
+    --t-border-input:    rgba(255,255,255,0.12);
+    --t-border-sidebar:  rgba(255,255,255,0.05);
+
+    /* Shadows */
+    --t-shadow-card:     0 4px 16px rgba(0,0,0,0.4);
+    --t-shadow-modal:    0 8px 32px rgba(0,0,0,0.6);
+
+    /* Shape */
+    --t-radius-card:     12px;
+    --t-radius-btn:      8px;
+    --t-radius-input:    8px;
+    --t-radius-modal:    12px;
+
+    /* Nav active state */
+    --t-nav-active-bg:   rgba(0,209,255,0.10);
+    --t-nav-active-border: #00d1ff;
+    --t-nav-hover-bg:    rgba(255,255,255,0.06);
+
+    /* Bootstrap overrides */
+    --bs-body-bg:        #0e1017;
+    --bs-body-color:     #e2e8f0;
+    --bs-secondary-bg:   #1e2130;
+    --bs-tertiary-bg:    #161820;
+    --bs-border-color:   rgba(255,255,255,0.07);
+    --bs-card-bg:        #1a1c23;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   2. LIGHT
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+    --t-bg-app:          #f0f2f5;
+    --t-bg-sidebar:      #1e293b;
+    --t-bg-card:         #ffffff;
+    --t-bg-card-alt:     #f8fafc;
+    --t-bg-input:        #ffffff;
+    --t-bg-modal:        #ffffff;
+    --t-bg-dropdown:     #ffffff;
+    --t-bg-th:           #f1f5f9;
+    --t-bg-tr:           #ffffff;
+    --t-bg-tr-hover:     #f1f5f9;
+    --t-scrollbar-track: #e2e8f0;
+    --t-scrollbar-thumb: #94a3b8;
+
+    --t-text:            #1e293b;
+    --t-text-muted:      #64748b;
+    --t-text-dim:        #94a3b8;
+    --t-text-heading:    #0f172a;
+    --t-text-nav:        #cbd5e1;
+    --t-text-nav-active: #ffffff;
+    --t-text-input:      #1e293b;
+    --t-text-placeholder:#94a3b8;
+
+    --t-accent:          #0ea5e9;
+    --t-accent-dim:      rgba(14,165,233,0.10);
+    --t-accent-hover:    #0284c7;
+
+    --t-border:          #e2e8f0;
+    --t-border-card:     #e2e8f0;
+    --t-border-input:    #cbd5e1;
+    --t-border-sidebar:  rgba(255,255,255,0.08);
+
+    --t-shadow-card:     0 2px 8px rgba(0,0,0,0.08);
+    --t-shadow-modal:    0 8px 32px rgba(0,0,0,0.14);
+
+    --t-radius-card:     12px;
+    --t-radius-btn:      8px;
+    --t-radius-input:    8px;
+    --t-radius-modal:    12px;
+
+    --t-nav-active-bg:   rgba(14,165,233,0.15);
+    --t-nav-active-border: #0ea5e9;
+    --t-nav-hover-bg:    rgba(255,255,255,0.10);
+
+    --bs-body-bg:        #f0f2f5;
+    --bs-body-color:     #1e293b;
+    --bs-secondary-bg:   #f8fafc;
+    --bs-tertiary-bg:    #f1f5f9;
+    --bs-border-color:   #e2e8f0;
+    --bs-card-bg:        #ffffff;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   3. WINDOWS 11 — Fluent Design / Mica acrylic
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="win11"] {
+    --t-bg-app:          #f3f3f3;
+    --t-bg-sidebar:      rgba(240,240,240,0.65);
+    --t-bg-card:         rgba(255,255,255,0.78);
+    --t-bg-card-alt:     rgba(248,248,248,0.68);
+    --t-bg-input:        rgba(255,255,255,0.72);
+    --t-bg-modal:        rgba(243,243,243,0.96);
+    --t-bg-dropdown:     rgba(248,248,248,0.97);
+    --t-bg-th:           rgba(238,238,238,0.65);
+    --t-bg-tr:           rgba(255,255,255,0.45);
+    --t-bg-tr-hover:     rgba(0,120,212,0.06);
+    --t-scrollbar-track: rgba(0,0,0,0.05);
+    --t-scrollbar-thumb: rgba(0,0,0,0.18);
+
+    --t-text:            #1a1a1a;
+    --t-text-muted:      #5c5c5c;
+    --t-text-dim:        #8a8a8a;
+    --t-text-heading:    #000000;
+    --t-text-nav:        #1e293b;
+    --t-text-nav-active: #0078d4;
+    --t-text-input:      #1a1a1a;
+    --t-text-placeholder:#8a8a8a;
+
+    --t-accent:          #0078d4;
+    --t-accent-dim:      rgba(0,120,212,0.10);
+    --t-accent-hover:    #106ebe;
+
+    --t-border:          rgba(0,0,0,0.10);
+    --t-border-card:     rgba(0,0,0,0.08);
+    --t-border-input:    rgba(0,0,0,0.15);
+    --t-border-sidebar:  rgba(0,0,0,0.05);
+
+    --t-shadow-card:     0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05);
+    --t-shadow-modal:    0 16px 48px rgba(0,0,0,0.14);
+
+    --t-radius-card:     8px;
+    --t-radius-btn:      4px;
+    --t-radius-input:    4px;
+    --t-radius-modal:    12px;
+
+    --t-nav-active-bg:   rgba(0,120,212,0.10);
+    --t-nav-active-border: #0078d4;
+    --t-nav-hover-bg:    rgba(0,0,0,0.05);
+
+    --bs-body-bg:        #f3f3f3;
+    --bs-body-color:     #1a1a1a;
+    --bs-secondary-bg:   rgba(248,248,248,0.68);
+    --bs-tertiary-bg:    rgba(238,238,238,0.65);
+    --bs-border-color:   rgba(0,0,0,0.10);
+    --bs-card-bg:        rgba(255,255,255,0.78);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   4. WINDOWS 10 — Flat modern dark
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="win10"] {
+    --t-bg-app:          #202020;
+    --t-bg-sidebar:      #000000;
+    --t-bg-card:         #2b2b2b;
+    --t-bg-card-alt:     #323232;
+    --t-bg-input:        #333333;
+    --t-bg-modal:        #2b2b2b;
+    --t-bg-dropdown:     #252525;
+    --t-bg-th:           #252525;
+    --t-bg-tr:           rgba(255,255,255,0.03);
+    --t-bg-tr-hover:     rgba(255,255,255,0.07);
+    --t-scrollbar-track: #1a1a1a;
+    --t-scrollbar-thumb: #555555;
+
+    --t-text:            #ffffff;
+    --t-text-muted:      #a0a0a0;
+    --t-text-dim:        #666666;
+    --t-text-heading:    #ffffff;
+    --t-text-nav:        #aaaaaa;
+    --t-text-nav-active: #ffffff;
+    --t-text-input:      #ffffff;
+    --t-text-placeholder:#666666;
+
+    --t-accent:          #0078d7;
+    --t-accent-dim:      rgba(0,120,215,0.18);
+    --t-accent-hover:    #1084de;
+
+    --t-border:          #3d3d3d;
+    --t-border-card:     #3a3a3a;
+    --t-border-input:    #555555;
+    --t-border-sidebar:  #1a1a1a;
+
+    --t-shadow-card:     0 2px 8px rgba(0,0,0,0.5);
+    --t-shadow-modal:    0 8px 32px rgba(0,0,0,0.7);
+
+    --t-radius-card:     0px;
+    --t-radius-btn:      0px;
+    --t-radius-input:    0px;
+    --t-radius-modal:    0px;
+
+    --t-nav-active-bg:   rgba(0,120,215,0.20);
+    --t-nav-active-border: #0078d7;
+    --t-nav-hover-bg:    rgba(255,255,255,0.07);
+
+    --bs-body-bg:        #202020;
+    --bs-body-color:     #ffffff;
+    --bs-secondary-bg:   #323232;
+    --bs-tertiary-bg:    #252525;
+    --bs-border-color:   #3d3d3d;
+    --bs-card-bg:        #2b2b2b;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   5. WINDOWS 7 — Aero Glass
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="win7"] {
+    --t-bg-app:          #205798;
+    --t-bg-sidebar:      #1b4e8a;
+    --t-bg-card:         rgba(255,255,255,0.88);
+    --t-bg-card-alt:     rgba(222,237,255,0.78);
+    --t-bg-input:        #ffffff;
+    --t-bg-modal:        rgba(230,242,255,0.97);
+    --t-bg-dropdown:     rgba(230,242,255,0.98);
+    --t-bg-th:           rgba(188,218,255,0.65);
+    --t-bg-tr:           rgba(255,255,255,0.65);
+    --t-bg-tr-hover:     rgba(0,100,200,0.08);
+    --t-scrollbar-track: rgba(80,130,190,0.15);
+    --t-scrollbar-thumb: rgba(0,80,200,0.30);
+
+    --t-text:            #1a1a1a;
+    --t-text-muted:      #3d5f80;
+    --t-text-dim:        #6080a0;
+    --t-text-heading:    #002060;
+    --t-text-nav:        rgba(255,255,255,0.92);
+    --t-text-nav-active: #ffffff;
+    --t-text-input:      #1a1a1a;
+    --t-text-placeholder:#6080a0;
+
+    --t-accent:          #0066cc;
+    --t-accent-dim:      rgba(0,102,204,0.12);
+    --t-accent-hover:    #0055aa;
+
+    --t-border:          rgba(100,150,210,0.30);
+    --t-border-card:     rgba(100,160,230,0.35);
+    --t-border-input:    #80b0d8;
+    --t-border-sidebar:  rgba(255,255,255,0.18);
+
+    --t-shadow-card:     0 2px 10px rgba(0,60,140,0.14), 0 0 0 1px rgba(100,160,230,0.20);
+    --t-shadow-modal:    0 8px 32px rgba(0,60,140,0.22);
+
+    --t-radius-card:     6px;
+    --t-radius-btn:      3px;
+    --t-radius-input:    3px;
+    --t-radius-modal:    8px;
+
+    --t-nav-active-bg:   rgba(255,255,255,0.18);
+    --t-nav-active-border: rgba(255,255,255,0.7);
+    --t-nav-hover-bg:    rgba(255,255,255,0.12);
+
+    --bs-body-bg:        #205798;
+    --bs-body-color:     #1a1a1a;
+    --bs-secondary-bg:   rgba(222,237,255,0.78);
+    --bs-tertiary-bg:    rgba(188,218,255,0.65);
+    --bs-border-color:   rgba(100,150,210,0.30);
+    --bs-card-bg:        rgba(255,255,255,0.88);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   6. WINDOWS XP — Luna Blue
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="winxp"] {
+    --t-bg-app:          #3a6ea5;
+    --t-bg-sidebar:      #245edb;
+    --t-bg-card:         #ece9d8;
+    --t-bg-card-alt:     #f5f4ed;
+    --t-bg-input:        #ffffff;
+    --t-bg-modal:        #ece9d8;
+    --t-bg-dropdown:     #ffffff;
+    --t-bg-th:           #d4d0c8;
+    --t-bg-tr:           #f4f2ea;
+    --t-bg-tr-hover:     #d6e6f8;
+    --t-scrollbar-track: #d4d0c8;
+    --t-scrollbar-thumb: #9b9790;
+
+    --t-text:            #000000;
+    --t-text-muted:      #444444;
+    --t-text-dim:        #6c6c6c;
+    --t-text-heading:    #000080;
+    --t-text-nav:        #ffffff;
+    --t-text-nav-active: #ffffff;
+    --t-text-input:      #000000;
+    --t-text-placeholder:#888888;
+
+    --t-accent:          #316ac5;
+    --t-accent-dim:      rgba(49,106,197,0.15);
+    --t-accent-hover:    #2756aa;
+
+    --t-border:          #aca899;
+    --t-border-card:     #aca899;
+    --t-border-input:    #7f9db9;
+    --t-border-sidebar:  #1a40b0;
+
+    --t-shadow-card:     2px 2px 4px rgba(0,0,0,0.20);
+    --t-shadow-modal:    4px 4px 10px rgba(0,0,0,0.30);
+
+    --t-radius-card:     3px;
+    --t-radius-btn:      2px;
+    --t-radius-input:    0px;
+    --t-radius-modal:    6px;
+
+    --t-nav-active-bg:   rgba(49,106,197,0.80);
+    --t-nav-active-border: rgba(255,255,255,0.6);
+    --t-nav-hover-bg:    rgba(255,255,255,0.15);
+
+    --bs-body-bg:        #3a6ea5;
+    --bs-body-color:     #000000;
+    --bs-secondary-bg:   #f5f4ed;
+    --bs-tertiary-bg:    #d4d0c8;
+    --bs-border-color:   #aca899;
+    --bs-card-bg:        #ece9d8;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   7. WINDOWS CLASSIC — 98 / 2000 silver
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="winclassic"] {
+    --t-bg-app:          #008080;
+    --t-bg-sidebar:      #000080;
+    --t-bg-card:         #c0c0c0;
+    --t-bg-card-alt:     #d4d0c8;
+    --t-bg-input:        #ffffff;
+    --t-bg-modal:        #c0c0c0;
+    --t-bg-dropdown:     #c0c0c0;
+    --t-bg-th:           #ababab;
+    --t-bg-tr:           #c8c8c8;
+    --t-bg-tr-hover:     #000080;
+    --t-scrollbar-track: #c0c0c0;
+    --t-scrollbar-thumb: #808080;
+
+    --t-text:            #000000;
+    --t-text-muted:      #333333;
+    --t-text-dim:        #555555;
+    --t-text-heading:    #000000;
+    --t-text-nav:        #ffffff;
+    --t-text-nav-active: #ffffff;
+    --t-text-input:      #000000;
+    --t-text-placeholder:#666666;
+
+    --t-accent:          #000080;
+    --t-accent-dim:      rgba(0,0,128,0.15);
+    --t-accent-hover:    #0000aa;
+
+    --t-border:          #808080;
+    --t-border-card:     #808080;
+    --t-border-input:    #808080;
+    --t-border-sidebar:  #000060;
+
+    --t-shadow-card:     inset -1px -1px 0 #808080, inset 1px 1px 0 #ffffff,
+                         inset -2px -2px 0 #404040, inset 2px 2px 0 #dfdfdf;
+    --t-shadow-modal:    inset -1px -1px 0 #808080, inset 1px 1px 0 #ffffff,
+                         inset -2px -2px 0 #404040, inset 2px 2px 0 #dfdfdf;
+
+    --t-radius-card:     0px;
+    --t-radius-btn:      0px;
+    --t-radius-input:    0px;
+    --t-radius-modal:    0px;
+
+    --t-nav-active-bg:   rgba(0,0,128,0.85);
+    --t-nav-active-border: #ffffff;
+    --t-nav-hover-bg:    rgba(255,255,255,0.12);
+
+    --bs-body-bg:        #008080;
+    --bs-body-color:     #000000;
+    --bs-secondary-bg:   #d4d0c8;
+    --bs-tertiary-bg:    #ababab;
+    --bs-border-color:   #808080;
+    --bs-card-bg:        #c0c0c0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   GLOBAL COMPONENT OVERRIDES — all use CSS variables above
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Body & App shell ── */
+body {
+    background-color: var(--t-bg-app) !important;
+    color: var(--t-text) !important;
+}
+.main-content, main {
+    background-color: var(--t-bg-app) !important;
+    color: var(--t-text) !important;
+}
+
+/* ── Sidebar ── */
+#sidebar, .sidebar {
+    background-color: var(--t-bg-sidebar) !important;
+    border-right: 1px solid var(--t-border-sidebar) !important;
+}
+[data-theme="win11"] #sidebar {
+    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+}
+[data-theme="win7"] #sidebar {
+    background: linear-gradient(180deg, #1b5a9c 0%, #1a4e88 60%, #163f72 100%) !important;
+    border-right: 1px solid rgba(255,255,255,0.12) !important;
+}
+
+/* ── Cards ── */
+.card {
+    background-color: var(--t-bg-card) !important;
+    border: 1px solid var(--t-border-card) !important;
+    border-radius: var(--t-radius-card) !important;
+    box-shadow: var(--t-shadow-card) !important;
+    color: var(--t-text) !important;
+}
+.card-header {
+    background-color: var(--t-bg-card-alt) !important;
+    border-bottom: 1px solid var(--t-border-card) !important;
+    color: var(--t-text) !important;
+    border-radius: var(--t-radius-card) var(--t-radius-card) 0 0 !important;
+}
+.card-body  { color: var(--t-text) !important; }
+.card-footer {
+    background-color: var(--t-bg-card-alt) !important;
+    border-top: 1px solid var(--t-border-card) !important;
+    color: var(--t-text) !important;
+}
+
+/* Win 7: acrylic glass cards */
+[data-theme="win7"] .card {
+    backdrop-filter: blur(10px) saturate(1.4);
+    -webkit-backdrop-filter: blur(10px) saturate(1.4);
+}
+/* Win XP: blue gradient card headers */
+[data-theme="winxp"] .card-header {
+    background: linear-gradient(180deg,#2468d8 0%,#1850c0 40%,#2060d8 100%) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    border-bottom: 2px solid #0a30a0 !important;
+}
+/* Win Classic: bevel border, no standard shadow */
+[data-theme="winclassic"] .card {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: inset -1px -1px 0 #808080, inset 1px 1px 0 #ffffff,
+                inset -2px -2px 0 #404040, inset 2px 2px 0 #dfdfdf !important;
+}
+[data-theme="winclassic"] .card-header {
+    background: linear-gradient(90deg,#000082 0%,#0000d4 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    font-weight: 700;
+}
+
+/* ── Tables ── */
+.table { color: var(--t-text) !important; border-color: var(--t-border) !important; }
+.table th, .table thead th {
+    background-color: var(--t-bg-th) !important;
+    color: var(--t-text-muted) !important;
+    border-color: var(--t-border) !important;
+}
+.table td { border-color: var(--t-border) !important; color: var(--t-text) !important; }
+.table tbody tr { background-color: var(--t-bg-tr) !important; }
+.table tbody tr:hover { background-color: var(--t-bg-tr-hover) !important; }
+[data-theme="winclassic"] .table tbody tr:hover td { color: #ffffff !important; }
+[data-theme="winxp"] .table thead th {
+    background-color: var(--t-bg-th) !important;
+    border-bottom: 2px solid #7a7570 !important;
+}
+
+/* ── Forms & Inputs ── */
+.form-control, .form-select, textarea.form-control {
+    background-color: var(--t-bg-input) !important;
+    color: var(--t-text-input) !important;
+    border: 1px solid var(--t-border-input) !important;
+    border-radius: var(--t-radius-input) !important;
+}
+.form-control::placeholder, .form-select::placeholder {
+    color: var(--t-text-placeholder) !important;
+}
+.form-control:focus, .form-select:focus {
+    background-color: var(--t-bg-input) !important;
+    color: var(--t-text-input) !important;
+    border-color: var(--t-accent) !important;
+    box-shadow: 0 0 0 3px var(--t-accent-dim) !important;
+    outline: none !important;
+}
+.input-group-text {
+    background-color: var(--t-bg-card-alt) !important;
+    border-color: var(--t-border-input) !important;
+    color: var(--t-text-muted) !important;
+    border-radius: var(--t-radius-input) !important;
+}
+.form-label, label { color: var(--t-text) !important; }
+.form-text         { color: var(--t-text-muted) !important; }
+.form-check-label  { color: var(--t-text) !important; }
+.form-check-input {
+    background-color: var(--t-bg-input) !important;
+    border-color: var(--t-border-input) !important;
+}
+.form-check-input:checked {
+    background-color: var(--t-accent) !important;
+    border-color: var(--t-accent) !important;
+}
+[data-theme="winclassic"] .form-control,
+[data-theme="winclassic"] .form-select {
+    border: 2px inset #808080 !important;
+    box-shadow: inset 1px 1px 3px rgba(0,0,0,0.3) !important;
+}
+
+/* ── Buttons ── */
+.btn { border-radius: var(--t-radius-btn) !important; }
+.btn-primary {
+    background-color: var(--t-accent) !important;
+    border-color: var(--t-accent) !important;
+    color: #fff !important;
+}
+.btn-primary:hover, .btn-primary:focus {
+    background-color: var(--t-accent-hover) !important;
+    border-color: var(--t-accent-hover) !important;
+}
+.btn-outline-primary {
+    border-color: var(--t-accent) !important;
+    color: var(--t-accent) !important;
+    background: transparent !important;
+}
+.btn-outline-primary:hover {
+    background-color: var(--t-accent) !important;
+    color: #fff !important;
+}
+.btn-secondary {
+    background-color: var(--t-bg-card-alt) !important;
+    border-color: var(--t-border) !important;
+    color: var(--t-text) !important;
+}
+.btn-secondary:hover {
+    background-color: var(--t-border) !important;
+    color: var(--t-text) !important;
+}
+/* Win Classic: 3D bevel buttons */
+[data-theme="winclassic"] .btn {
+    background-color: #c0c0c0 !important;
+    border: none !important;
+    color: #000000 !important;
+    box-shadow: inset -1px -1px 0 #808080, inset 1px 1px 0 #ffffff,
+                inset -2px -2px 0 #404040, inset 2px 2px 0 #dfdfdf !important;
+}
+[data-theme="winclassic"] .btn:active {
+    box-shadow: inset 2px 2px 0 #808080, inset -1px -1px 0 #ffffff !important;
+    transform: translate(1px,1px);
+}
+[data-theme="winclassic"] .btn-primary,
+[data-theme="winclassic"] .btn-danger,
+[data-theme="winclassic"] .btn-success {
+    background-color: #c0c0c0 !important;
+    color: #000000 !important;
+}
+/* Win XP: rounded XP-style buttons */
+[data-theme="winxp"] .btn-primary {
+    background: linear-gradient(180deg,#4a88e8 0%,#2060d0 50%,#1850c8 100%) !important;
+    border: 1px solid #0a30a0 !important;
+    color: #ffffff !important;
+    border-radius: 3px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
+}
+
+/* ── Dropdowns ── */
+.dropdown-menu {
+    background-color: var(--t-bg-dropdown) !important;
+    border: 1px solid var(--t-border) !important;
+    border-radius: var(--t-radius-card) !important;
+    box-shadow: var(--t-shadow-modal) !important;
+    color: var(--t-text) !important;
+}
+.dropdown-item {
+    color: var(--t-text) !important;
+    border-radius: calc(var(--t-radius-card) - 2px) !important;
+}
+.dropdown-item:hover, .dropdown-item:focus {
+    background-color: var(--t-accent-dim) !important;
+    color: var(--t-text) !important;
+}
+.dropdown-item:active {
+    background-color: var(--t-accent) !important;
+    color: #ffffff !important;
+}
+.dropdown-divider { border-color: var(--t-border) !important; }
+.dropdown-header  { color: var(--t-text-muted) !important; }
+[data-theme="winclassic"] .dropdown-menu {
+    border: none !important;
+    box-shadow: inset -1px -1px 0 #808080, inset 1px 1px 0 #ffffff,
+                inset -2px -2px 0 #404040, inset 2px 2px 0 #dfdfdf, 4px 4px 8px rgba(0,0,0,0.4) !important;
+}
+
+/* ── Modals ── */
+.modal-content {
+    background-color: var(--t-bg-modal) !important;
+    border: 1px solid var(--t-border) !important;
+    border-radius: var(--t-radius-modal) !important;
+    box-shadow: var(--t-shadow-modal) !important;
+    color: var(--t-text) !important;
+}
+.modal-header {
+    background-color: var(--t-bg-card-alt) !important;
+    border-bottom: 1px solid var(--t-border) !important;
+    color: var(--t-text-heading) !important;
+    border-radius: calc(var(--t-radius-modal) - 1px) calc(var(--t-radius-modal) - 1px) 0 0 !important;
+}
+.modal-body  { color: var(--t-text) !important; }
+.modal-footer {
+    background-color: var(--t-bg-card-alt) !important;
+    border-top: 1px solid var(--t-border) !important;
+    border-radius: 0 0 calc(var(--t-radius-modal) - 1px) calc(var(--t-radius-modal) - 1px) !important;
+}
+.modal-title { color: var(--t-text-heading) !important; }
+/* Win XP: classic blue title bar in modals */
+[data-theme="winxp"] .modal-header {
+    background: linear-gradient(180deg,#0a44cc 0%,#1e5fe8 40%,#1751d0 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+}
+[data-theme="winxp"] .modal-title { color: #ffffff !important; }
+[data-theme="winxp"] .modal-content { border: 2px solid #0a30a0 !important; }
+/* Win Classic: navy title bar */
+[data-theme="winclassic"] .modal-header {
+    background: linear-gradient(90deg,#000082 0%,#1010d0 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+}
+[data-theme="winclassic"] .modal-title { color: #ffffff !important; }
+[data-theme="winclassic"] .modal-content {
+    border: none !important;
+    box-shadow: inset -1px -1px 0 #808080, inset 1px 1px 0 #ffffff,
+                inset -2px -2px 0 #404040, inset 2px 2px 0 #dfdfdf,
+                6px 6px 14px rgba(0,0,0,0.4) !important;
+}
+/* Win 7: Aero glass modal header */
+[data-theme="win7"] .modal-header {
+    background: linear-gradient(180deg,rgba(180,215,255,0.96) 0%,rgba(140,190,255,0.88) 100%) !important;
+    color: #002060 !important;
+    backdrop-filter: blur(12px);
+}
+[data-theme="win7"] .modal-title { color: #002060 !important; }
+/* Win 11: subtle acrylic modal */
+[data-theme="win11"] .modal-content {
+    backdrop-filter: blur(20px) saturate(1.5);
+    -webkit-backdrop-filter: blur(20px) saturate(1.5);
+}
+[data-theme="win11"] .modal-header {
+    background-color: rgba(238,238,238,0.88) !important;
+    backdrop-filter: blur(12px);
+}
+
+/* btn-close color for dark vs light contexts */
+[data-theme="dark"]      .btn-close,
+[data-theme="win10"]     .btn-close { filter: invert(1) grayscale(1) !important; }
+[data-theme="winxp"]     .modal-header .btn-close,
+[data-theme="winclassic"].modal-header .btn-close { filter: invert(1) !important; }
+
+/* ── Nav links (sidebar) ── */
+.nav-link { color: var(--t-text-nav) !important; border-radius: var(--t-radius-btn) !important; }
+.nav-link:hover {
+    background-color: var(--t-nav-hover-bg) !important;
+    color: var(--t-text-nav-active) !important;
+}
+.nav-link i { color: var(--t-text-nav) !important; opacity: 0.65; }
+.nav-link:hover i { color: var(--t-accent) !important; opacity: 1; }
+.nav-link.active {
+    background-color: var(--t-nav-active-bg) !important;
+    color: var(--t-text-nav-active) !important;
+    border-left-color: var(--t-nav-active-border) !important;
+}
+.nav-link.active i { color: var(--t-accent) !important; opacity: 1; }
+.nav-section-label { color: var(--t-text-dim) !important; opacity: 0.65; }
+
+/* ── Nav sub (DVR group) ── */
+.nav-sub { border-left-color: var(--t-border) !important; }
+.nav-sub .nav-link { color: var(--t-text-dim) !important; }
+.nav-sub .nav-link:hover { color: var(--t-text-nav-active) !important; }
+.nav-sub .nav-link.active {
+    color: var(--t-text-nav-active) !important;
+    border-left-color: var(--t-nav-active-border) !important;
+}
+
+/* ── Nav tabs ── */
+.nav-tabs { border-color: var(--t-border) !important; }
+.nav-tabs .nav-link {
+    color: var(--t-text-muted) !important;
+    background: transparent !important;
+    border-color: transparent !important;
+}
+.nav-tabs .nav-link.active {
+    background-color: var(--t-bg-card) !important;
+    color: var(--t-accent) !important;
+    border-color: var(--t-border) var(--t-border) var(--t-bg-card) !important;
+}
+
+/* ── List groups ── */
+.list-group-item {
+    background-color: var(--t-bg-card) !important;
+    border-color: var(--t-border-card) !important;
+    color: var(--t-text) !important;
+}
+.list-group-item:hover { background-color: var(--t-bg-card-alt) !important; }
+.list-group-item.active {
+    background-color: var(--t-accent-dim) !important;
+    border-color: var(--t-accent) !important;
+    color: var(--t-text) !important;
+}
+
+/* ── Pagination ── */
+.page-link {
+    background-color: var(--t-bg-card) !important;
+    border-color: var(--t-border) !important;
+    color: var(--t-text) !important;
+}
+.page-item.active .page-link {
+    background-color: var(--t-accent) !important;
+    border-color: var(--t-accent) !important;
+    color: #fff !important;
+}
+
+/* ── Progress bars ── */
+.progress { background-color: var(--t-bg-card-alt) !important; border-radius: var(--t-radius-btn) !important; }
+.progress-bar { background-color: var(--t-accent) !important; }
+
+/* ── Accordion ── */
+.accordion-item {
+    background-color: var(--t-bg-card) !important;
+    border-color: var(--t-border) !important;
+    border-radius: var(--t-radius-card) !important;
+    overflow: hidden;
+}
+.accordion-button {
+    background-color: var(--t-bg-card) !important;
+    color: var(--t-text) !important;
+}
+.accordion-button:not(.collapsed) {
+    background-color: var(--t-accent-dim) !important;
+    color: var(--t-accent) !important;
+    box-shadow: none !important;
+}
+.accordion-button::after { filter: invert(0); }
+[data-theme="dark"] .accordion-button::after,
+[data-theme="win10"] .accordion-button::after { filter: invert(1); }
+
+/* ── Alerts (flash) ── */
+.alert { border-radius: var(--t-radius-card) !important; }
+
+/* ── Badges ── */
+.badge.bg-secondary {
+    background-color: var(--t-bg-card-alt) !important;
+    color: var(--t-text-muted) !important;
+}
+
+/* ── Tooltips ── */
+.tooltip-inner {
+    background-color: var(--t-bg-dropdown) !important;
+    color: var(--t-text) !important;
+    border-radius: var(--t-radius-btn) !important;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--t-scrollbar-track) !important; }
+::-webkit-scrollbar-thumb {
+    background: var(--t-scrollbar-thumb) !important;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { opacity: 0.8; }
+[data-theme="winclassic"] ::-webkit-scrollbar-thumb { border-radius: 0; }
+
+/* ── Typography ── */
+h1,h2,h3,h4,h5,h6 { color: var(--t-text-heading) !important; }
+.text-muted { color: var(--t-text-muted) !important; }
+.text-light-emphasis { color: var(--t-text-dim) !important; }
+hr { border-color: var(--t-border) !important; opacity: 0.6; }
+a:not(.nav-link):not(.btn):not(.dropdown-item) { color: var(--t-accent); }
+a:not(.nav-link):not(.btn):not(.dropdown-item):hover { color: var(--t-accent-hover); }
+
+/* ── Pre / Code blocks ── */
+pre, code {
+    background-color: var(--t-bg-card-alt) !important;
+    color: var(--t-text) !important;
+    border: 1px solid var(--t-border) !important;
+    border-radius: var(--t-radius-input) !important;
+}
+
+/* ── Analog clock accent follows theme ── */
+.analog-clock-time { color: var(--t-accent) !important; opacity: 0.82; }
+#live-date         { color: var(--t-text-dim) !important; }
+.analog-clock-wrapper {
+    border-color: var(--t-accent-dim) !important;
+    box-shadow: 0 0 18px var(--t-accent-dim), 0 4px 15px rgba(0,0,0,0.3) !important;
+}
+
+/* ── Login page card ── */
+body:not(.sidebar-visible) .container .card {
+    background-color: var(--t-bg-card) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THEME PICKER PANEL STYLES
+   ═══════════════════════════════════════════════════════════════ */
+.theme-picker-panel {
+    position: absolute;
+    left: calc(100% + 10px);
+    bottom: 0;
+    z-index: 3000;
+    background: var(--t-bg-modal);
+    border: 1px solid var(--t-border);
+    border-radius: var(--t-radius-modal);
+    box-shadow: var(--t-shadow-modal);
+    padding: 14px;
+    width: 236px;
+    animation: themePanelIn 0.15s ease;
+}
+@keyframes themePanelIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+.theme-picker-title {
+    font-size: 0.70rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--t-text-muted);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--t-border);
+}
+.theme-picker-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+.theme-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 6px 7px;
+    background: var(--t-bg-card-alt);
+    border: 1px solid var(--t-border);
+    border-radius: calc(var(--t-radius-card) - 2px);
+    cursor: pointer;
+    font-size: 0.72rem;
+    color: var(--t-text);
+    font-weight: 500;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    width: 100%;
+    transition: border-color 0.12s ease, background-color 0.12s ease, transform 0.1s ease;
+}
+.theme-btn:hover {
+    border-color: var(--t-accent) !important;
+    background: var(--t-accent-dim) !important;
+    transform: translateY(-1px);
+}
+.theme-btn.is-active {
+    border-color: var(--t-accent) !important;
+    background: var(--t-accent-dim) !important;
+    box-shadow: 0 0 0 2px var(--t-accent-dim);
+    font-weight: 700;
+}
+.theme-btn.wide { grid-column: span 2; flex-direction: row; justify-content: center; gap: 8px; }
+.theme-swatch {
+    width: 38px;
+    height: 22px;
+    border-radius: 3px;
+    border: 1px solid rgba(128,128,128,0.25);
+    display: block;
+    flex-shrink: 0;
+}
+.theme-btn.wide .theme-swatch { width: 28px; height: 18px; }

@@ -1,0 +1,399 @@
+{% extends "layout.html" %}
+{% block title %}Compliance & GRC — REBIZ Sentinel X{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 compliance-page">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+        <div>
+            <div class="text-uppercase small text-info fw-semibold letter-spacing-1">Governance, Risk &amp; Compliance</div>
+            <h1 class="h3 mb-1">Compliance posture</h1>
+            <p class="text-secondary mb-0">Deterministic control evaluation from Sentinel X telemetry.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <select id="eval-server" class="form-select form-select-sm bg-dark text-light border-secondary">
+                <option value="primary">Primary server</option>
+                <option value="secondary">Secondary server</option>
+            </select>
+            <button class="btn btn-info btn-sm fw-semibold" id="evaluate-btn">
+                <i class="fas fa-rotate me-1"></i>Evaluate now
+            </button>
+        </div>
+    </div>
+
+    <div id="compliance-alert" class="alert d-none mb-3" role="alert"></div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-xl-6">
+            <div class="card bg-dark border-secondary h-100">
+                <div class="card-header border-secondary fw-semibold"><i class="fas fa-upload text-info me-2"></i>Import your organization catalog</div>
+                <div class="card-body">
+                    <p class="small text-secondary">Upload a JSON framework or a CSV control register. Existing records with the same codes are updated; new records are added.</p>
+                    <div class="d-flex gap-2 align-items-center">
+                        <input id="catalog-file" type="file" accept=".json,.csv" class="form-control form-control-sm bg-dark text-light border-secondary">
+                        <button id="catalog-import-btn" class="btn btn-info btn-sm text-nowrap">Import</button>
+                    </div>
+                    <a class="small text-info d-inline-block mt-2" href="/api/compliance/import-template">Download CSV template</a>
+                    <details class="small text-secondary mt-2">
+                        <summary>JSON structure</summary>
+                        <code class="d-block mt-2 text-info">{ "code":"ORG", "name":"My Framework", "version":"1.0", "domains":[{ "code":"D01", "name":"Access", "requirements":[{ "code":"R01", "title":"Access is reviewed", "controls":[{ "code":"C01", "title":"Quarterly access review", "control_type":"manual" }] }] }] }</code>
+                    </details>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="card bg-dark border-secondary h-100">
+                <div class="card-header border-secondary fw-semibold"><i class="fas fa-wand-magic-sparkles text-warning me-2"></i>Map Wazuh alerts to a control</div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-6"><input id="rule-name" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Rule name"></div>
+                        <div class="col-md-3"><select id="rule-severity" class="form-select form-select-sm bg-dark text-light border-secondary"><option>low</option><option selected>medium</option><option>high</option><option>critical</option></select></div>
+                        <div class="col-md-3"><input id="rule-level" type="number" min="0" value="5" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Min level"></div>
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-7"><select id="rule-control" class="form-select form-select-sm bg-dark text-light border-secondary"><option value="">Select a control</option></select></div>
+                        <div class="col-md-5"><button id="rule-create-btn" class="btn btn-warning btn-sm w-100">Create Wazuh rule</button></div>
+                    </div>
+                    <div class="small text-secondary mt-2">This creates a deterministic rule for <code>rule.level &gt;= minimum</code>. Add more specific JSON rules through the API when needed.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header border-secondary fw-semibold"><i class="fas fa-file-arrow-up text-success me-2"></i>Upload organization evidence</div>
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-lg-3"><label class="small text-secondary">Control</label><select id="evidence-control" class="form-select form-select-sm bg-dark text-light border-secondary"><option value="">Select a control</option></select></div>
+                <div class="col-lg-3"><label class="small text-secondary">Evidence file</label><input id="evidence-file" type="file" class="form-control form-control-sm bg-dark text-light border-secondary"></div>
+                <div class="col-lg-3"><label class="small text-secondary">Title / notes</label><input id="evidence-title" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Quarterly access review"></div>
+                <div class="col-lg-3"><button id="evidence-upload-btn" class="btn btn-success btn-sm w-100">Upload evidence</button></div>
+            </div>
+            <div class="small text-secondary mt-2">Evidence is stored with its SHA-256 hash, uploader, timestamp, and control mapping. Maximum file size is 10 MB.</div>
+        </div>
+    </div>
+
+    <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header border-secondary d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span class="fw-semibold"><i class="fas fa-file-excel text-success me-2"></i>SOC 2 workbook explorer</span>
+            <div class="d-flex gap-2">
+                <input id="workbook-file" type="file" accept=".xlsx,.xlsm" class="form-control form-control-sm bg-dark text-light border-secondary">
+                <button id="workbook-import-btn" class="btn btn-success btn-sm text-nowrap">Import workbook</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="small text-secondary mb-3">Import the workbook to keep the implementation plan, TSC mapping, evidence register, policy mapping, risk register, ownership matrix, and actual controls available as clickable records.</div>
+            <div id="workbook-list" class="d-flex flex-wrap gap-2 mb-3"></div>
+            <div id="workbook-explorer" class="d-none">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <div id="workbook-sheets" class="btn-group btn-group-sm flex-wrap"></div>
+                    <input id="workbook-search" class="form-control form-control-sm bg-dark text-light border-secondary ms-auto" style="max-width:240px" placeholder="Search control, risk, policy…">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover align-middle small mb-0">
+                        <thead><tr><th>Key</th><th>Record</th><th>Type</th><th>Status</th><th>Control</th></tr></thead>
+                        <tbody id="workbook-record-list"><tr><td colspan="5" class="text-secondary text-center py-4">Select a workbook sheet.</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4" id="stat-cards">
+        <div class="col-6 col-xl-3"><div class="card bg-dark border-secondary h-100"><div class="card-body"><div class="text-secondary small">Controls</div><div class="display-6 fw-bold" id="stat-controls">—</div><div class="small text-secondary" id="stat-automation">—</div></div></div></div>
+        <div class="col-6 col-xl-3"><div class="card bg-dark border-secondary h-100"><div class="card-body"><div class="text-secondary small">Open findings</div><div class="display-6 fw-bold text-warning" id="stat-open">—</div><div class="small text-secondary" id="stat-severity">—</div></div></div></div>
+        <div class="col-6 col-xl-3"><div class="card bg-dark border-secondary h-100"><div class="card-body"><div class="text-secondary small">Critical / high</div><div class="display-6 fw-bold text-danger" id="stat-critical">—</div><div class="small text-secondary" id="stat-overdue">—</div></div></div></div>
+        <div class="col-6 col-xl-3"><div class="card bg-dark border-secondary h-100"><div class="card-body"><div class="text-secondary small">Evidence freshness</div><div class="display-6 fw-bold text-success" id="stat-fresh">—</div><div class="small text-secondary" id="stat-evidence">—</div></div></div></div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-xl-5">
+            <div class="card bg-dark border-secondary h-100">
+                <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold"><i class="fas fa-layer-group text-info me-2"></i>Framework posture</span>
+                    <button class="btn btn-outline-secondary btn-sm" id="refresh-frameworks"><i class="fas fa-arrows-rotate"></i></button>
+                </div>
+                <div class="card-body p-0"><div id="framework-list" class="list-group list-group-flush"></div></div>
+            </div>
+        </div>
+        <div class="col-xl-7">
+            <div class="card bg-dark border-secondary h-100">
+                <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold"><i class="fas fa-triangle-exclamation text-warning me-2"></i>Open findings</span>
+                    <select id="finding-filter" class="form-select form-select-sm bg-dark text-light border-secondary" style="width:auto">
+                        <option value="">All statuses</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="pending_verification">Pending verification</option>
+                    </select>
+                </div>
+                <div class="table-responsive"><table class="table table-dark table-hover align-middle mb-0 small">
+                    <thead><tr><th>Finding</th><th>Asset</th><th>Severity</th><th>Status</th><th>Occurrences</th></tr></thead>
+                    <tbody id="finding-list"><tr><td colspan="5" class="text-secondary text-center py-4">Loading findings…</td></tr></tbody>
+                </table></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-xl-7">
+            <div class="card bg-dark border-secondary">
+                <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold"><i class="fas fa-shield-halved text-success me-2"></i>Control catalog</span>
+                    <span class="badge text-bg-secondary" id="control-count">0 controls</span>
+                </div>
+                <div class="table-responsive"><table class="table table-dark table-sm mb-0">
+                    <thead><tr><th>Control</th><th>Framework</th><th>Type</th><th>Status</th></tr></thead>
+                    <tbody id="control-list"><tr><td colspan="4" class="text-secondary text-center py-4">Loading controls…</td></tr></tbody>
+                </table></div>
+            </div>
+        </div>
+        <div class="col-xl-5">
+            <div class="card bg-dark border-secondary h-100">
+                <div class="card-header border-secondary"><span class="fw-semibold"><i class="fas fa-list-check text-info me-2"></i>Deterministic rules</span></div>
+                <div class="card-body" id="rule-list"><div class="text-secondary">Loading rules…</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="compliance-detail-modal" class="compliance-modal d-none" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+    <div class="compliance-modal-card bg-dark border border-secondary">
+        <div class="d-flex justify-content-between align-items-center border-bottom border-secondary p-3">
+            <h2 id="detail-modal-title" class="h5 mb-0">Record details</h2>
+            <button id="detail-modal-close" class="btn btn-sm btn-outline-secondary" aria-label="Close"><i class="fas fa-xmark"></i></button>
+        </div>
+        <div id="detail-modal-body" class="p-3"></div>
+    </div>
+</div>
+
+<style>
+.letter-spacing-1 { letter-spacing: .12em; }
+.compliance-page .card { box-shadow: 0 10px 28px rgba(0,0,0,.12); }
+.compliance-page .table { --bs-table-bg: transparent; }
+.compliance-page .list-group-item { background: transparent; color: inherit; border-color: rgba(255,255,255,.08); }
+.status-pill { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; }
+.finding-row { cursor: pointer; }
+.clickable-row, .clickable-card { cursor: pointer; }
+.clickable-row:hover, .clickable-card:hover { background: rgba(13,202,240,.08) !important; }
+.compliance-modal { position: fixed; inset: 0; z-index: 1100; background: rgba(0,0,0,.72); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.compliance-modal-card { width: min(920px, 96vw); max-height: 88vh; overflow: auto; border-radius: .5rem; box-shadow: 0 20px 70px rgba(0,0,0,.5); }
+.compliance-detail-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap:.75rem; }
+.compliance-detail-grid > div { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); padding:.65rem; border-radius:.35rem; }
+.compliance-detail-label { color: #98a2b3; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; }
+.detail-json { white-space: pre-wrap; word-break: break-word; color:#8bd5ff; background:#10131a; padding:.8rem; border-radius:.35rem; font-size:.78rem; }
+</style>
+<script>
+(() => {
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+    const badge = (value) => {
+        const colors = {critical:'danger', high:'danger', medium:'warning text-dark', low:'secondary',
+            open:'warning text-dark', acknowledged:'info', in_progress:'info', pending_verification:'primary',
+            resolved:'success', failed:'danger', passed:'success', not_assessed:'secondary'};
+        return `<span class="badge text-bg-${colors[value] || 'secondary'} status-pill">${esc(value || 'unknown').replaceAll('_',' ')}</span>`;
+    };
+    const showMessage = (text, kind='info') => {
+        const el = $('compliance-alert');
+        el.className = `alert alert-${kind} mb-3`;
+        el.textContent = text;
+        setTimeout(() => el.classList.add('d-none'), 6000);
+    };
+    const showModal = (title, body) => {
+        $('detail-modal-title').textContent = title;
+        $('detail-modal-body').innerHTML = body;
+        $('compliance-detail-modal').classList.remove('d-none');
+    };
+    const hideModal = () => $('compliance-detail-modal').classList.add('d-none');
+    const renderData = (data) => `<pre class="detail-json">${esc(JSON.stringify(data, null, 2))}</pre>`;
+    async function getJson(url, options) {
+        const response = await fetch(url, options);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+        return data;
+    }
+    async function loadSummary() {
+        const data = await getJson('/api/compliance/summary');
+        $('stat-controls').textContent = data.controls;
+        $('stat-automation').textContent = `${data.automated_controls} automated · ${data.manual_controls} manual`;
+        $('stat-open').textContent = data.findings.open;
+        $('stat-severity').textContent = `${data.findings.medium} medium · ${data.findings.low} low`;
+        $('stat-critical').textContent = `${data.findings.critical} / ${data.findings.high}`;
+        $('stat-overdue').textContent = `${data.findings.overdue} overdue remediation`;
+        $('stat-fresh').textContent = data.evidence.fresh;
+        $('stat-evidence').textContent = `${data.evidence.expiring} expiring · ${data.evidence.expired} expired`;
+        $('framework-list').innerHTML = data.frameworks.map(f => `
+            <div class="list-group-item px-3 py-3 clickable-card" data-framework-id="${f.id}" title="Open framework details" role="button" tabindex="0">
+                <div class="d-flex justify-content-between"><div><strong>${esc(f.name)}</strong><div class="small text-secondary">${esc(f.code)} · v${esc(f.version)}</div></div><span class="badge text-bg-secondary">${f.controls} controls</span></div>
+                <div class="progress mt-2" style="height:5px"><div class="progress-bar bg-success" style="width:${f.controls ? (f.passed/f.controls*100) : 0}%"></div><div class="progress-bar bg-danger" style="width:${f.controls ? (f.failed/f.controls*100) : 0}%"></div></div>
+                <div class="d-flex justify-content-between align-items-center small text-secondary mt-1"><span>${f.passed} passed · ${f.failed} failed · ${f.not_assessed} not assessed</span><span class="text-info">View details <i class="fas fa-arrow-up-right-from-square ms-1"></i></span></div>
+            </div>`).join('') || '<div class="p-3 text-secondary">No frameworks configured.</div>';
+    }
+    async function loadFindings() {
+        const filter = $('finding-filter').value;
+        const data = await getJson('/api/compliance/findings' + (filter ? `?status=${encodeURIComponent(filter)}` : ''));
+        $('finding-list').innerHTML = data.length ? data.map(f => `
+            <tr class="finding-row" data-id="${f.id}" title="Open finding details" role="button" tabindex="0">
+                <td><div class="fw-semibold">${esc(f.title)}</div><div class="text-secondary">${esc(f.control?.code || 'Unmapped control')}</div></td>
+                <td>${esc(f.asset || 'Unknown')}</td><td>${badge(f.severity)}</td><td>${badge(f.status)}</td><td>${f.occurrence_count}<div class="text-info">View details</div></td>
+            </tr>`).join('') : '<tr><td colspan="5" class="text-secondary text-center py-4">No findings match this filter.</td></tr>';
+    }
+    async function loadControls() {
+        const data = await getJson('/api/compliance/controls');
+        $('control-count').textContent = `${data.length} controls`;
+        $('control-list').innerHTML = data.map(c => `<tr class="clickable-row" data-control-id="${c.id}" title="Open control details" role="button" tabindex="0"><td><strong>${esc(c.code)}</strong><div class="text-secondary">${esc(c.title)}</div></td><td>${esc(c.framework)}</td><td>${badge(c.control_type)}</td><td>${badge(c.status)}<div class="text-info">View details</div></td></tr>`).join('');
+        const options = '<option value="">Select a control</option>' + data.map(c => `<option value="${c.id}">${esc(c.code)} — ${esc(c.title)}</option>`).join('');
+        $('rule-control').innerHTML = options;
+        $('evidence-control').innerHTML = options;
+    }
+    async function loadRules() {
+        const data = await getJson('/api/compliance/rules');
+        $('rule-list').innerHTML = data.map(r => `<div class="border-bottom border-secondary-subtle pb-3 mb-3"><div class="d-flex justify-content-between"><strong>${esc(r.name)}</strong>${r.enabled ? '<span class="text-success small">Enabled</span>' : '<span class="text-secondary small">Disabled</span>'}</div><div class="small text-secondary mt-1">${esc(r.source)} · ${esc(r.schedule)} · ${badge(r.severity)}</div><code class="small d-block mt-2 text-info">${esc(JSON.stringify(r.condition))}</code><div class="small text-secondary mt-1">${r.controls.map(esc).join(' · ')}</div></div>`).join('') || '<div class="text-secondary">No rules configured.</div>';
+    }
+    async function loadWorkbooks() {
+        const items = await getJson('/api/compliance/workbooks');
+        $('workbook-list').innerHTML = items.length ? items.map(item => `<button class="btn btn-outline-success btn-sm workbook-pill" data-workbook-id="${item.id}"><i class="fas fa-file-excel me-1"></i>${esc(item.filename || item.name)} <span class="badge text-bg-secondary ms-1">${item.records}</span></button>`).join('') : '<span class="text-secondary small">No workbook imported yet.</span>';
+        if (items.length) selectWorkbook(items[0].id);
+    }
+    async function selectWorkbook(workbookId) {
+        $('workbook-explorer').classList.remove('d-none');
+        const sheets = await getJson(`/api/compliance/workbooks/${workbookId}/sheets`);
+        $('workbook-sheets').innerHTML = sheets.map((sheet, index) => `<button class="btn btn-outline-secondary sheet-button ${index === 0 ? 'active' : ''}" data-workbook-id="${workbookId}" data-sheet="${esc(sheet.name)}">${esc(sheet.name)} <span class="badge text-bg-secondary">${sheet.records}</span></button>`).join('');
+        if (sheets.length) loadWorkbookRecords(workbookId, sheets[0].name);
+    }
+    async function loadWorkbookRecords(workbookId, sheet) {
+        const search = $('workbook-search').value.trim();
+        const params = new URLSearchParams({sheet});
+        if (search) params.set('search', search);
+        const records = await getJson(`/api/compliance/workbooks/${workbookId}/records?${params}`);
+        $('workbook-record-list').innerHTML = records.length ? records.map(record => `<tr class="clickable-row workbook-record-row" data-record-id="${record.id}"><td><strong>${esc(record.record_key || '—')}</strong></td><td>${esc(record.title || '—')}</td><td>${esc(record.record_type)}</td><td>${record.status ? badge(record.status) : '<span class="text-secondary">—</span>'}</td><td>${esc(record.control_code || '—')}</td></tr>`).join('') : '<tr><td colspan="5" class="text-secondary text-center py-4">No matching records.</td></tr>';
+    }
+    async function refresh() {
+        try { await Promise.all([loadSummary(), loadFindings(), loadControls(), loadRules(), loadWorkbooks()]); }
+        catch (error) { showMessage(error.message, 'danger'); }
+    }
+    $('evaluate-btn').addEventListener('click', async () => {
+        const button = $('evaluate-btn');
+        button.disabled = true; button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Evaluating…';
+        try {
+            const result = await getJson('/api/compliance/evaluate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({server_key:$('eval-server').value, hours:24, limit:1000})});
+            const levels = Object.entries(result.observed_levels || {}).map(([level, count]) => `level ${level}: ${count}`).join(', ');
+            showMessage(`Evaluation complete: ${result.collected_events || 0} Wazuh alerts collected; ${result.rule_matches || 0} rule matches; ${result.findings_created} new findings, ${result.findings_updated} recurring matches.${levels ? ` Observed ${levels}.` : ''}`, 'success');
+            await refresh();
+        } catch (error) { showMessage(error.message, 'danger'); }
+        finally { button.disabled = false; button.innerHTML = '<i class="fas fa-rotate me-1"></i>Evaluate now'; }
+    });
+    $('evidence-upload-btn').addEventListener('click', async () => {
+        const file = $('evidence-file').files[0];
+        const controlId = $('evidence-control').value;
+        if (!file || !controlId) return showMessage('Choose an evidence file and control.', 'warning');
+        const body = new FormData();
+        body.append('file', file); body.append('control_id', controlId);
+        body.append('title', $('evidence-title').value.trim() || file.name);
+        try {
+            await getJson('/api/compliance/evidence', {method:'POST', body});
+            showMessage('Evidence uploaded and linked to the selected control.', 'success');
+            $('evidence-file').value = ''; $('evidence-title').value = '';
+            await loadSummary();
+        } catch (error) { showMessage(error.message, 'danger'); }
+    });
+    $('finding-filter').addEventListener('change', loadFindings);
+    $('refresh-frameworks').addEventListener('click', refresh);
+    $('detail-modal-close').addEventListener('click', hideModal);
+    $('compliance-detail-modal').addEventListener('click', (event) => { if (event.target.id === 'compliance-detail-modal') hideModal(); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hideModal(); });
+    $('workbook-import-btn').addEventListener('click', async () => {
+        const file = $('workbook-file').files[0];
+        if (!file) return showMessage('Choose the SOC 2 Excel workbook first.', 'warning');
+        const body = new FormData(); body.append('file', file);
+        try {
+            const result = await getJson('/api/compliance/workbooks/import', {method:'POST', body});
+            showMessage(`Workbook imported: ${result.controls} controls and ${result.records} underlying records.`, 'success');
+            $('workbook-file').value = ''; await loadWorkbooks(); await loadControls(); await loadSummary();
+        } catch (error) { showMessage(error.message, 'danger'); }
+    });
+    $('workbook-list').addEventListener('click', (event) => {
+        const button = event.target.closest('.workbook-pill');
+        if (button) selectWorkbook(button.dataset.workbookId);
+    });
+    $('workbook-sheets').addEventListener('click', (event) => {
+        const button = event.target.closest('.sheet-button');
+        if (!button) return;
+        document.querySelectorAll('.sheet-button').forEach(item => item.classList.remove('active'));
+        button.classList.add('active');
+        loadWorkbookRecords(button.dataset.workbookId, button.dataset.sheet);
+    });
+    $('workbook-search').addEventListener('input', () => {
+        const active = document.querySelector('.sheet-button.active');
+        if (active) loadWorkbookRecords(active.dataset.workbookId, active.dataset.sheet);
+    });
+    $('framework-list').addEventListener('click', async (event) => {
+        const card = event.target.closest('[data-framework-id]');
+        if (!card) return;
+        try {
+            const controls = await getJson(`/api/compliance/controls?framework_id=${card.dataset.frameworkId}`);
+            showModal('Framework controls', `<p class="text-secondary">${controls.length} controls in this framework.</p><div class="list-group list-group-flush">${controls.map(c => `<button class="list-group-item list-group-item-action bg-dark text-light border-secondary text-start framework-control-link" data-control-id="${c.id}"><strong>${esc(c.code)}</strong> — ${esc(c.title)} <span class="float-end">${badge(c.status)} <span class="text-info ms-2">Open</span></span></button>`).join('')}</div>`);
+        } catch (error) { showMessage(error.message, 'danger'); }
+    });
+    $('control-list').addEventListener('click', async (event) => {
+        const row = event.target.closest('[data-control-id]');
+        if (!row) return;
+        try {
+            const control = await getJson(`/api/compliance/controls/${row.dataset.controlId}`);
+            showModal(`${esc(control.code)} — ${esc(control.title)}`, `<div class="compliance-detail-grid mb-3"><div><div class="compliance-detail-label">Framework</div>${esc(control.framework)}</div><div><div class="compliance-detail-label">Domain</div>${esc(control.domain)}</div><div><div class="compliance-detail-label">Requirement</div>${esc(control.requirement)}</div><div><div class="compliance-detail-label">Evidence</div>${control.evidence_count}</div><div><div class="compliance-detail-label">Status</div>${badge(control.status)}</div></div><p>${esc(control.description || 'No description')}</p><h3 class="h6 mt-3">Workbook records</h3>${control.workbook_records.length ? control.workbook_records.map(record => `<div class="border-top border-secondary py-2"><strong>${esc(record.sheet_name)} · ${esc(record.title)}</strong>${renderData(record.data)}</div>`).join('') : '<div class="text-secondary">No workbook records linked.</div>'}`);
+        } catch (error) { showMessage(error.message, 'danger'); }
+    });
+    $('workbook-record-list').addEventListener('click', async (event) => {
+        const row = event.target.closest('[data-record-id]');
+        if (!row) return;
+        const record = await getJson(`/api/compliance/workbook-records/${row.dataset.recordId}`);
+        showModal(`${esc(record.record_key || 'Workbook record')} — ${esc(record.title)}`, `<div class="compliance-detail-grid mb-3"><div><div class="compliance-detail-label">Sheet</div>${esc(record.sheet_name)}</div><div><div class="compliance-detail-label">Type</div>${esc(record.record_type)}</div><div><div class="compliance-detail-label">Control</div>${esc(record.control_code || 'Not mapped')}</div><div><div class="compliance-detail-label">Status</div>${record.status ? badge(record.status) : '—'}</div></div>${renderData(record.data)}`);
+    });
+    $('detail-modal-body').addEventListener('click', async (event) => {
+        const link = event.target.closest('.framework-control-link');
+        if (link) {
+            const control = await getJson(`/api/compliance/controls/${link.dataset.controlId}`);
+            showModal(`${esc(control.code)} — ${esc(control.title)}`, `<p>${esc(control.description || 'No description')}</p><h3 class="h6 mt-3">Workbook records</h3>${control.workbook_records.map(record => `<div class="border-top border-secondary py-2"><strong>${esc(record.sheet_name)} · ${esc(record.title)}</strong>${renderData(record.data)}</div>`).join('')}`);
+        }
+    });
+    $('catalog-import-btn').addEventListener('click', async () => {
+        const file = $('catalog-file').files[0];
+        if (!file) return showMessage('Choose a JSON or CSV catalog first.', 'warning');
+        const body = new FormData(); body.append('file', file);
+        try {
+            const result = await getJson('/api/compliance/import', {method:'POST', body});
+            showMessage(`Catalog imported: ${result.counts.controls} controls added and ${result.counts.requirements} requirements added.`, 'success');
+            $('catalog-file').value = ''; await refresh();
+        } catch (error) { showMessage(error.message, 'danger'); }
+    });
+    $('rule-create-btn').addEventListener('click', async () => {
+        const name = $('rule-name').value.trim();
+        const controlId = $('rule-control').value;
+        if (!name || !controlId) return showMessage('Enter a rule name and select a control.', 'warning');
+        try {
+            await getJson('/api/compliance/rules', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+                name, severity:$('rule-severity').value, control_ids:[Number(controlId)],
+                condition:{field:'rule.level', operator:'greater_than_equal', value:Number($('rule-level').value || 0)}
+            })});
+            showMessage('Wazuh rule created and mapped to the selected control.', 'success');
+            $('rule-name').value = ''; await loadRules();
+        } catch (error) { showMessage(error.message, 'danger'); }
+    });
+    const openFinding = async (row) => {
+        try {
+            const detail = await getJson(`/api/compliance/findings/${row.dataset.id}`);
+            const evidence = (detail.evidence || []).map(item => `<div class="border-top border-secondary py-2"><strong>${esc(item.source)} · ${esc(item.source_document_id || 'snapshot')}</strong><div class="small text-secondary">${esc(item.collected_at)} · SHA-256 ${esc(item.sha256)}</div>${renderData(item.snapshot)}</div>`).join('');
+            const risks = (detail.risks || []).map(item => `<div class="border-top border-secondary py-2"><strong>${esc(item.name)}</strong><div class="small text-secondary">Likelihood ${item.likelihood} · Impact ${item.impact} · Inherent ${item.inherent_risk} · Residual ${item.residual_risk}</div></div>`).join('');
+            const remediations = (detail.remediations || []).map(item => `<div class="border-top border-secondary py-2"><strong>${esc(item.title)}</strong><div class="small text-secondary">${esc(item.status)}${item.due_date ? ` · Due ${esc(item.due_date)}` : ''}</div><div>${esc(item.recommendation || '')}</div></div>`).join('');
+            showModal(esc(detail.title), `<div class="compliance-detail-grid mb-3"><div><div class="compliance-detail-label">Asset</div>${esc(detail.asset || 'Unknown')}</div><div><div class="compliance-detail-label">Severity</div>${badge(detail.severity)}</div><div><div class="compliance-detail-label">Status</div>${badge(detail.status)}</div><div><div class="compliance-detail-label">Occurrences</div>${detail.occurrence_count}</div><div><div class="compliance-detail-label">Control</div>${esc(detail.control?.code || 'Unmapped')}</div><div><div class="compliance-detail-label">Evidence items</div>${detail.evidence_count}</div></div><p>${esc(detail.description || '')}</p><h3 class="h6 mt-3">Evidence snapshots</h3>${evidence || '<div class="text-secondary">No evidence snapshots.</div>'}<h3 class="h6 mt-3">Risks</h3>${risks || '<div class="text-secondary">No risks recorded.</div>'}<h3 class="h6 mt-3">Remediation</h3>${remediations || `<div class="text-secondary">${esc(detail.remediation || 'No remediation recorded.')}</div>`}`);
+        } catch (error) { showMessage(error.message, 'danger'); }
+    };
+    $('finding-list').addEventListener('click', async (event) => {
+        const row = event.target.closest('.finding-row');
+        if (!row) return;
+        await openFinding(row);
+    });
+    $('finding-list').addEventListener('keydown', async (event) => {
+        const row = event.target.closest('.finding-row');
+        if (row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); await openFinding(row); }
+    });
+    refresh();
+})();
+</script>
+{% endblock %}

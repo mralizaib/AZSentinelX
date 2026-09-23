@@ -1,0 +1,121 @@
+In this app, two Wazuh servers are configured in the application. We use the Server Switch option to switch between servers and view alerts for the relevant site.
+
+
+
+However, at present, email alerts are being received from the Pakistan Site server, but not from the US-based Site server.
+
+
+
+Please review and implement the following requirements:
+
+1. Multi-Server Alert Support
+
+The application should continue to support switching between the Pakistan and US-based Wazuh servers.
+
+Alerts should be retrieved and displayed correctly based on the selected server.
+
+The application and email alerts should clearly identify which server or site each alert is coming from.
+
+Please investigate why alerts from the US-based Wazuh server are not currently being received via email.
+
+2. Same Alert Categories for Both Servers
+
+Both servers should support the same alert severity categories, including: 
+
+Critical
+
+High
+
+Medium
+
+Low
+
+Other available alert categories
+
+Alerts from both servers should be displayed consistently within the application.
+
+The same alert filtering and notification logic should apply to both servers.
+
+3. Alert Severity and Site Name in Email Subject Line
+
+The alert severity and server/site name should be clearly mentioned in the email subject line.
+
+
+
+For example:
+
+
+
+[CRITICAL] Wazuh Alert – Pakistan Site
+
+[HIGH] Wazuh Alert – US Site
+
+[MEDIUM] Wazuh Alert – US Site
+
+
+
+This will allow the management team to quickly identify both the alert severity and the source site/server without opening the email.
+
+4. Calendar-Based Date and Time Range Filter
+
+The current day-based time range filter should be enhanced by adding a calendar-based date selection option.
+
+
+
+Users should be able to select a specific date from the calendar.
+
+Users should also be able to select a custom date range using the calendar.
+
+When a specific date is selected, the application should display only the alerts generated on that selected date.
+
+When a date range is selected, the application should display all alerts generated within the selected date range.
+
+The existing day-based filter can remain available, but the calendar date-range option should be added for more flexible alert filtering.
+
+5. Unexpected Session Logout / Expiration Issue
+
+Please also investigate the unexpected session logout or session expiration issue.
+
+
+
+Currently, the user session sometimes expires even while the user is actively working in the application.
+
+
+
+The expected behavior should be:
+
+
+
+The session should remain active as long as the user is actively using the application.
+
+The session should only expire after the configured inactivity timeout.
+
+User activity should properly reset or extend the inactivity timer.
+
+The application should not unexpectedly log out an active user.
+
+
+
+Please review the following areas:
+
+
+
+Session timeout configuration
+
+User activity tracking
+
+JWT or authentication token expiration
+
+Token refresh and renewal mechanism
+
+Frontend session handling
+
+Backend session handling
+
+API authentication and token validation
+
+Multi-server authentication and session handling
+
+Objective
+
+The goal is to ensure reliable monitoring and alert management across both Wazuh servers, provide clear alert categorization for management, improve historical alert filtering through a calendar-based date range interface, clearly indicate data availability on specific dates, and prevent unexpected user logouts while the application is actively being used.
